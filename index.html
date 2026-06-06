@@ -346,7 +346,58 @@ tr:last-child td { border-bottom: none; }
       set(ref(db, 'settings/operatorName'), name).catch(e => console.error(e));
     };
 
+    // ── 同仁名單同步 ──────────────────────────────
+    window._fbSaveStaff = function(staffArray) {
+      const obj = {};
+      staffArray.forEach((s, i) => { obj['s' + i] = { empId: s[0], name: s[1], hireDate: s[2] || '' }; });
+      set(ref(db, 'staff'), obj)
+        .then(() => console.log('✓ 同仁名單已同步，共', staffArray.length, '人'))
+        .catch(e => console.error('✗ 同仁名單同步失敗', e));
+    };
+
+    // 即時監聽同仁名單
+    onValue(ref(db, 'staff'), (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      const list = Object.values(data).filter(Boolean);
+      if (!list.length) return;
+      // 更新 RAW_STAFF
+      RAW_STAFF.length = 0;
+      list.forEach(s => RAW_STAFF.push([s.empId, s.name, s.hireDate || '']));
+      // 更新 people 陣列（保留現有點名狀態）
+      list.forEach((s, idx) => {
+        const existing = people.find(p => String(p.empId) === String(s.empId));
+        if (!existing) {
+          people.push({ empId: String(s.empId), name: s.name, hireDate: s.hireDate || '', idx: people.length, status: 'none', ts: null, history: [], note: '' });
+        } else {
+          existing.name = s.name;
+          existing.hireDate = s.hireDate || '';
+        }
+      });
+      // 移除已刪除的人員
+      const empIds = list.map(s => String(s.empId));
+      for (let i = people.length - 1; i >= 0; i--) {
+        if (!empIds.includes(String(people[i].empId))) people.splice(i, 1);
+      }
+      if (typeof renderStaffTable === 'function' && document.getElementById('panel-stafflist')?.classList.contains('active')) renderStaffTable();
+      if (typeof renderGrid === 'function' && document.getElementById('panel-attendance')?.classList.contains('active')) renderGrid();
+      if (typeof updateStats === 'function') updateStats();
+      const lbl = document.getElementById('staffCountLabel');
+      if (lbl) lbl.textContent = '共 ' + list.length + ' 人';
+      const sb = document.querySelector('.sb-footer div');
+      if (sb && sb.textContent.includes('共')) sb.textContent = '📊 共 ' + list.length + ' 人';
+    });
+
     console.log('🔥 Firebase 已連線：or-attendance');
+
+    // 首次載入：若 Firebase 無同仁名單則上傳預設名單
+    get(ref(db, 'staff')).then(snapshot => {
+      if (!snapshot.exists()) {
+        console.log('Firebase 無同仁名單，上傳預設名單...');
+        if (window._fbSaveStaff) window._fbSaveStaff(RAW_STAFF);
+      }
+    }).catch(e => console.error('讀取同仁名單失敗', e));
+
     window.dispatchEvent(new Event('firebaseReady'));
 
     // 顯示連線狀態
@@ -1614,6 +1665,10 @@ function saveStaffModal() {
   closeStaffModal();
   renderStaffTable();
   renderGrid();
+  // 同步到 Firebase
+  if (window._fbReady && window._fbSaveStaff) {
+    window._fbSaveStaff(RAW_STAFF);
+  }
 }
 
 function deleteStaff(empId) {
@@ -1625,6 +1680,10 @@ function deleteStaff(empId) {
   people = people.filter(p => String(p.empId) !== String(empId));
   renderStaffTable(); renderGrid(); updateStats();
   showToast('已移除：' + s[1]);
+  // 同步到 Firebase
+  if (window._fbReady && window._fbSaveStaff) {
+    window._fbSaveStaff(RAW_STAFF);
+  }
 }
 
 function closeStaffModal() {
