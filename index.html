@@ -251,7 +251,7 @@ tr:last-child td { border-bottom: none; }
       <div class="topbar-title" id="topbarTitle">課程管理</div>
       <div class="topbar-right">
         <span id="saveIndicatorEl" style="font-size:11px;color:#9AA0AC;white-space:nowrap;display:none"></span>
-        <span class="role-badge">👤 點名員</span>
+        <span class="role-badge" onclick="openOperatorModal()" title="點擊修改點名員" style="cursor:pointer" id="operatorBadge">👤 <span id="operatorName">點名員</span></span>
         <button class="btn sm" id="saveBtn" onclick="saveData()" style="background:var(--navy);color:#fff;border-color:var(--navy);display:none" id="saveBtnTop">💾 存檔</button>
         <button class="btn sm" onclick="exportCSV()" style="display:none" id="exportBtnTop">📤 匯出</button>
       </div>
@@ -1640,5 +1640,57 @@ setTimeout(() => {
   }
 }, 300);
 </script>
+
+<!-- 點名員 Modal -->
+<div id="operatorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:360px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="background:var(--navy);padding:18px 24px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:15px;font-weight:700;color:#fff">👤 點名員設定</div>
+      <button onclick="closeOperatorModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+    <div style="padding:24px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600">點名員姓名</div>
+      <input id="operatorInput" type="text" placeholder="請輸入點名員姓名…"
+        style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:15px;font-family:inherit;margin-bottom:6px"
+        onkeydown="if(event.key==='Enter')saveOperator()">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:20px">此名稱將顯示於右上角及匯出報表中</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="closeOperatorModal()" class="btn" style="flex:1">取消</button>
+        <button onclick="saveOperator()" class="btn primary" style="flex:2">✓ 儲存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openOperatorModal() {
+  const cur = document.getElementById('operatorName').textContent;
+  document.getElementById('operatorInput').value = cur === '點名員' ? '' : cur;
+  document.getElementById('operatorModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('operatorInput').focus(), 50);
+}
+function closeOperatorModal() {
+  document.getElementById('operatorModal').style.display = 'none';
+}
+function saveOperator() {
+  const val = document.getElementById('operatorInput').value.trim();
+  if (!val) { document.getElementById('operatorInput').style.borderColor='red'; setTimeout(()=>document.getElementById('operatorInput').style.borderColor='',1500); return; }
+  document.getElementById('operatorName').textContent = val;
+  // 同步到負責人欄位（如果點名頁有載入課程）
+  const respEl = document.getElementById('cResp');
+  if (respEl && !respEl.value) respEl.value = val;
+  closeOperatorModal();
+  showToast('點名員已設定：' + val);
+  try { localStorage.setItem('operatorName', val); } catch(e) {}
+}
+// 初始化：從 localStorage 還原
+(function() {
+  try {
+    const saved = localStorage.getItem('operatorName');
+    if (saved) document.getElementById('operatorName').textContent = saved;
+  } catch(e) {}
+})();
+</script>
+
 </body>
 </html>
