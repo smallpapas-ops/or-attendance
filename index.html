@@ -891,6 +891,7 @@ let people = RAW_STAFF.map(([empId, name, hireDate], idx) => ({
 }));
 
 let filterMode = 'all';
+let currentCourseId = null; // 目前載入的課程 ID
 
 function loadCourseList() {
   try { return JSON.parse(localStorage.getItem('courseList') || '[]'); } catch(e) { return []; }
@@ -1292,6 +1293,7 @@ function _restoreSession(sessionData, peopleArr) {
 function loadCourse(id) {
   const c = courseList.find(x => x.id === id);
   if (!c) return;
+  currentCourseId = id; // 記住目前課程 ID
 
   // 更新隱藏 input（供存檔/匯出用）
   document.getElementById('cName').value = c.name;
@@ -1775,16 +1777,33 @@ function getCourseKey() {
 }
 
 function saveData() {
-  const name = document.getElementById('cName').value.trim();
-  if (!name) { showToast('⚠ 請先在課程管理選擇課程'); return; }
-  const courseKey = getCourseKey();
+  // 優先用 currentCourseId 找課程
+  let activeCourse = null;
+  if (currentCourseId) {
+    activeCourse = courseList.find(c => c.id === currentCourseId);
+  }
+  // 備援：從隱藏欄位
+  if (!activeCourse) {
+    const name = document.getElementById('cName').value.trim();
+    if (name) activeCourse = courseList.find(c => c.name === name) || { name, date: document.getElementById('cDate').value, time: document.getElementById('cTime').value, place: document.getElementById('cPlace').value, inst: document.getElementById('cResp').value };
+  }
+  if (!activeCourse) { showToast('⚠ 請先在課程管理選擇課程'); return; }
+
+  // 同步隱藏欄位
+  document.getElementById('cName').value = activeCourse.name || '';
+  document.getElementById('cDate').value = activeCourse.date || '';
+  document.getElementById('cTime').value = activeCourse.time || '';
+  document.getElementById('cPlace').value = activeCourse.place || '';
+  document.getElementById('cResp').value = activeCourse.inst || '';
+
+  const name = activeCourse.name;
+  const courseKey = 'sess_' + name + '_' + (activeCourse.date || '');
   const courseInfo = {
-    name, date: document.getElementById('cDate').value,
-    time: document.getElementById('cTime').value,
-    place: document.getElementById('cPlace').value,
-    resp: document.getElementById('cResp').value,
+    name, date: activeCourse.date || '', time: activeCourse.time || '',
+    place: activeCourse.place || '', resp: activeCourse.inst || '',
+    cat: activeCourse.cat || '', cr: activeCourse.cr || 0,
   };
-  const existingCourse = courseList.find(c => c.name === courseInfo.name && c.date === courseInfo.date);
+  const existingCourse = courseList.find(c => c.id === activeCourse.id || (c.name === name && c.date === activeCourse.date));
   if (!existingCourse) {
     const nc = {
       id: 'C' + Date.now(), name: courseInfo.name, date: courseInfo.date,
