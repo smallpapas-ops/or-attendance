@@ -3,18 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com https://*.firebaseio.com;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  font-src 'self' data: https://fonts.gstatic.com;
-  connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebaseio.com wss://*.firebasedatabase.app https://fonts.googleapis.com https://fonts.gstatic.com;
-  img-src 'self' data:;
-">
+
 <title>手術室點名系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+/* 使用系統字體，避免 CSP 問題 */
 
 :root {
   --navy: #1A2E52;
@@ -41,7 +34,7 @@
   --shadow-md: 0 4px 20px rgba(26,46,82,.12);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif; background: #EEF1F7; color: var(--text); min-height: 100vh; }
+body { font-family: 'Microsoft JhengHei', '微軟正黑體', 'PingFang TC', 'Heiti TC', sans-serif; background: #EEF1F7; color: var(--text); min-height: 100vh; }
 
 /* ── LAYOUT ── */
 .app { display: flex; height: 100vh; overflow: hidden; }
