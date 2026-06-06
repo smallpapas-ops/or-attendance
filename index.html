@@ -231,7 +231,7 @@ tr:last-child td { border-bottom: none; }
         <span class="sb-icon">📊</span> 統計分析
       </div>
       <div class="sb-item" onclick="showPanel('stafflist')">
-        <span class="sb-icon">👥</span> 同仁名單
+        <span class="sb-icon">👥</span> 同仁名單 <span style="font-size:10px;opacity:.6;margin-left:auto">🔒</span>
       </div>
       <div class="sb-section">系統</div>
       <div class="sb-item" onclick="showPanel('export')">
@@ -456,19 +456,41 @@ tr:last-child td { border-bottom: none; }
 
     <!-- ④ 同仁名單 -->
     <div class="panel" id="panel-stafflist">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">👥 同仁名單 <span id="staffCountLabel" style="font-size:12px;color:var(--text3);font-weight:400"></span></div>
-          <button class="btn sm primary" onclick="openAddStaffModal()">➕ 新增人員</button>
+      <!-- 🔒 同仁名單鎖定畫面 -->
+      <div id="staffLock" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+        <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:340px;text-align:center;box-shadow:var(--shadow-md)">
+          <div style="font-size:44px;margin-bottom:14px">🔒</div>
+          <div style="font-size:18px;font-weight:700;color:var(--navy);margin-bottom:6px">同仁名單</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:24px">請輸入主管密碼以繼續</div>
+          <input id="staffPwdInput" type="password" placeholder="輸入密碼…"
+            style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:16px;text-align:center;letter-spacing:.2em;font-family:inherit;margin-bottom:10px"
+            onkeydown="if(event.key==='Enter')checkStaffPwd()">
+          <div id="staffPwdErr" style="font-size:12px;color:#A32D2D;min-height:18px;margin-bottom:12px"></div>
+          <button onclick="checkStaffPwd()"
+            style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--radius-sm);padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
+            🔓 登入
+          </button>
         </div>
-        <div class="card-body">
-          <div class="search-bar">
-            <input class="search-input" id="staffSearch" placeholder="🔍 搜尋姓名或員編…" oninput="renderStaffTable()">
+      </div>
+      <!-- 同仁名單內容 -->
+      <div id="staffContent" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+          <button onclick="lockDashboard()" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 14px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit">🔒 登出後台</button>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">👥 同仁名單 <span id="staffCountLabel" style="font-size:12px;color:var(--text3);font-weight:400"></span></div>
+            <button class="btn sm primary" onclick="openAddStaffModal()">➕ 新增人員</button>
           </div>
-          <div class="tbl-wrap"><table id="staffTable">
-            <thead><tr><th>員編</th><th>姓名</th><th>到職日</th><th>出席 / 應到</th><th>上課率</th><th>狀態</th><th style="width:80px">操作</th></tr></thead>
-            <tbody id="staffBody"></tbody>
-          </table></div>
+          <div class="card-body">
+            <div class="search-bar">
+              <input class="search-input" id="staffSearch" placeholder="🔍 搜尋姓名或員編…" oninput="renderStaffTable()">
+            </div>
+            <div class="tbl-wrap"><table id="staffTable">
+              <thead><tr><th>員編</th><th>姓名</th><th>到職日</th><th>出席 / 應到</th><th>上課率</th><th>狀態</th><th style="width:80px">操作</th></tr></thead>
+              <tbody id="staffBody"></tbody>
+            </table></div>
+          </div>
         </div>
       </div>
     </div>
@@ -710,9 +732,13 @@ function showPanel(name) {
     if (dashUnlocked) renderDashboard();
     else setTimeout(() => document.getElementById('dashPwdInput')?.focus(), 100);
   }
+  if (name === 'stafflist') {
+    if (staffUnlocked) renderStaffTable();
+    else setTimeout(() => document.getElementById('staffPwdInput')?.focus(), 100);
+  }
   if (name === 'courses') { renderCourseList(); renderTodayBanner(); }
   if (name === 'export') initExportPanel();
-  if (name === 'stafflist') renderStaffTable();
+
 }
 
 // ── ATTENDANCE ─────────────────────────────────────
@@ -1079,12 +1105,13 @@ function loadCourse(id) {
 }
 
 // ── DASHBOARD ──────────────────────────────────────
-const DASH_PWD = 'AF0713';
+const ADMIN_PWD = 'AF0713';
 let dashUnlocked = false;
+let staffUnlocked = false;
 
 function checkDashPwd() {
   const val = document.getElementById('dashPwdInput').value;
-  if (val === DASH_PWD) {
+  if (val === ADMIN_PWD) {
     dashUnlocked = true;
     document.getElementById('dashLock').style.display = 'none';
     document.getElementById('dashContent').style.display = 'block';
@@ -1101,9 +1128,29 @@ function checkDashPwd() {
 
 function lockDashboard() {
   dashUnlocked = false;
+  staffUnlocked = false;
   document.getElementById('dashLock').style.display = 'flex';
   document.getElementById('dashContent').style.display = 'none';
+  document.getElementById('staffLock').style.display = 'flex';
+  document.getElementById('staffContent').style.display = 'none';
   showPanel('courses');
+}
+
+function checkStaffPwd() {
+  const val = document.getElementById('staffPwdInput').value;
+  if (val === ADMIN_PWD) {
+    staffUnlocked = true;
+    document.getElementById('staffLock').style.display = 'none';
+    document.getElementById('staffContent').style.display = 'block';
+    document.getElementById('staffPwdInput').value = '';
+    renderStaffTable();
+  } else {
+    document.getElementById('staffPwdErr').textContent = '密碼錯誤，請重新輸入';
+    document.getElementById('staffPwdInput').value = '';
+    document.getElementById('staffPwdInput').focus();
+    document.getElementById('staffPwdInput').style.borderColor = '#A32D2D';
+    setTimeout(() => { document.getElementById('staffPwdInput').style.borderColor = ''; }, 1500);
+  }
 }
 
 let chartDist, chartMonthly;
