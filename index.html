@@ -325,7 +325,8 @@ tr:last-child td { border-bottom: none; }
 
     window._fbGetSession = function(key) {
       const safeKey = toSafeKey(key);
-      return window._fbSessions?.[safeKey] || window._fbSessions?.[key] || null;
+      const raw = window._fbSessions?.[safeKey] || window._fbSessions?.[key] || null;
+      return raw && window._normalizeSession ? window._normalizeSession(JSON.parse(JSON.stringify(raw))) : raw;
     };
 
     window._fbDeleteCourse = function(courseKey) {
@@ -387,6 +388,17 @@ tr:last-child td { border-bottom: none; }
       const sb = document.querySelector('.sb-footer div');
       if (sb && sb.textContent.includes('共')) sb.textContent = '📊 共 ' + list.length + ' 人';
     });
+
+    // Firebase 把 array 轉成 object，需要轉回來的工具函數
+    window._normalizeSession = function(sessionData) {
+      if (!sessionData || !sessionData.records) return sessionData;
+      Object.values(sessionData.records).forEach(rec => {
+        if (!rec) return;
+        if (!rec.logs) { rec.logs = []; }
+        else if (!Array.isArray(rec.logs)) { rec.logs = Object.values(rec.logs).filter(Boolean); }
+      });
+      return sessionData;
+    };
 
     console.log('🔥 Firebase 已連線：or-attendance');
 
@@ -1832,7 +1844,13 @@ function saveData() {
     if (!existing[p.empId]) existing[p.empId] = { empId: p.empId, name: p.name, logs: [], isExtra: p.isExtra || false };
     const rec = existing[p.empId];
     if (!rec) return;
-    if (!Array.isArray(rec.logs)) rec.logs = []; // 修正 logs 不是陣列的問題
+    // Firebase 會把陣列轉成物件，需要轉回來
+    if (!rec.logs) {
+      rec.logs = [];
+    } else if (!Array.isArray(rec.logs)) {
+      // Firebase 把 array 存成 {0: {...}, 1: {...}} 格式，轉回陣列
+      rec.logs = Object.values(rec.logs).filter(Boolean);
+    }
     rec.name = p.name;
     rec.lastStatus = p.status || 'none';
     rec.lastNote = p.note || '';
