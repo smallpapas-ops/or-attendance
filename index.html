@@ -230,40 +230,63 @@ tr:last-child td { border-bottom: none; }
     // 即時監聽課程清單
     onValue(ref(db, 'courseList'), (snapshot) => {
       const data = snapshot.val();
+      let list = [];
       if (data) {
-        window.courseList = Array.isArray(data) ? data : Object.values(data);
-      } else {
-        window.courseList = [];
+        list = Array.isArray(data) ? data : Object.values(data);
+        // 過濾掉 null/undefined
+        list = list.filter(Boolean);
       }
+      // 直接更新全域 courseList
+      if (typeof courseList !== 'undefined') {
+        courseList.length = 0;
+        list.forEach(c => courseList.push(c));
+      }
+      window.courseList = list;
+      // 同步到 localStorage 作為備份
+      try { localStorage.setItem('courseList', JSON.stringify(list)); } catch(e) {}
       if (typeof renderCourseList === 'function') renderCourseList();
       if (typeof renderTodayBanner === 'function') renderTodayBanner();
+      if (typeof initExportPanel === 'function' && document.getElementById('panel-export')?.classList.contains('active')) initExportPanel();
     });
 
     // 即時監聽點名紀錄
     onValue(ref(db, 'sessions'), (snapshot) => {
       const data = snapshot.val() || {};
       window._fbSessions = data;
-      // 如果目前在點名頁且有載入課程，更新畫面
+      // 同步到 localStorage
+      Object.entries(data).forEach(([safeKey, val]) => {
+        try {
+          // safeKey 是把特殊字元換成 _ 的版本，找原始 key
+          const origKey = Object.keys(data).find(k => k === safeKey);
+          if (val) localStorage.setItem(safeKey, JSON.stringify(val));
+        } catch(e) {}
+      });
+      // 如果目前在點名頁且有載入課程，即時更新
       const panel = document.getElementById('panel-attendance');
       if (panel && panel.classList.contains('active')) {
         const courseName = document.getElementById('cName')?.value;
         const courseDate = document.getElementById('cDate')?.value;
         if (courseName && courseDate) {
-          const key = 'sess_' + courseName + '_' + courseDate;
-          if (data[key]) {
-            // 更新本地 people 狀態（只更新尚未點名的人）
-            const recs = data[key].records || {};
+          const rawKey = 'sess_' + courseName + '_' + courseDate;
+          const safeKey = rawKey.replace(/[.#$\[\]]/g, '_');
+          const sessData = data[safeKey] || data[rawKey];
+          if (sessData) {
+            const recs = sessData.records || {};
             if (typeof people !== 'undefined') {
+              let changed = false;
               people.forEach(p => {
                 const rec = recs[p.empId];
-                if (rec && rec.lastStatus !== 'none' && p.status === 'none') {
+                if (rec && rec.lastStatus && rec.lastStatus !== 'none' && p.status === 'none') {
                   p.status = rec.lastStatus;
                   p.note = rec.lastNote || '';
                   p.ts = rec.logs?.[rec.logs.length-1]?.ts || null;
+                  changed = true;
                 }
               });
-              if (typeof updateStats === 'function') updateStats();
-              if (typeof renderGrid === 'function') renderGrid();
+              if (changed) {
+                if (typeof updateStats === 'function') updateStats();
+                if (typeof renderGrid === 'function') renderGrid();
+              }
             }
           }
         }
@@ -282,25 +305,30 @@ tr:last-child td { border-bottom: none; }
 
     // 覆寫 localStorage 操作，改為 Firebase
     window._fbSaveCourseList = function(list) {
-      const obj = {};
-      list.forEach((c, i) => { obj['c' + i] = c; });
-      set(ref(db, 'courseList'), obj).catch(e => console.error('儲存課程失敗', e));
+      const cleanList = list.filter(Boolean).map(c => ({...c}));
+      set(ref(db, 'courseList'), cleanList)
+        .then(() => console.log('✓ 課程清單已同步，共', cleanList.length, '筆'))
+        .catch(e => console.error('✗ 課程儲存失敗', e));
     };
 
+    function toSafeKey(key) {
+      return key.replace(/[.#$\[\]]/g, '_');
+    }
+
     window._fbSaveSession = function(key, data) {
-      const safeKey = key.replace(/[.#$/[\]]/g, '_');
+      const safeKey = toSafeKey(key);
       set(ref(db, 'sessions/' + safeKey), data)
-        .then(() => console.log('Firebase 存檔成功'))
-        .catch(e => console.error('Firebase 存檔失敗', e));
+        .then(() => console.log('✓ Firebase 存檔：' + safeKey))
+        .catch(e => console.error('✗ Firebase 存檔失敗', e));
     };
 
     window._fbGetSession = function(key) {
-      const safeKey = key.replace(/[.#$/[\]]/g, '_');
-      return window._fbSessions?.[safeKey] || null;
+      const safeKey = toSafeKey(key);
+      return window._fbSessions?.[safeKey] || window._fbSessions?.[key] || null;
     };
 
     window._fbDeleteCourse = function(courseKey) {
-      const safeKey = courseKey.replace(/[.#$/[\]]/g, '_');
+      const safeKey = toSafeKey(courseKey);
       remove(ref(db, 'sessions/' + safeKey)).catch(e => console.error(e));
     };
 
