@@ -1287,6 +1287,7 @@ function loadCourse(id) {
 
   let restoredCount = 0;
   if (sessionData && sessionData.records) {
+    // 1. 恢復既有人員的點名狀態
     people.forEach(p => {
       const rec = sessionData.records[p.empId];
       if (!rec) return;
@@ -1296,6 +1297,25 @@ function loadCourse(id) {
         if (rec.logs && rec.logs.length > 0) p.ts = rec.logs[rec.logs.length - 1].ts || null;
         restoredCount++;
       }
+    });
+
+    // 2. 恢復臨時新增的人員（session 裡有但 people 陣列裡沒有的）
+    const existingEmpIds = new Set(people.map(p => String(p.empId)));
+    Object.values(sessionData.records).forEach(rec => {
+      if (!rec.empId || existingEmpIds.has(String(rec.empId))) return;
+      // 這是臨時新增的人員，加回 people
+      people.push({
+        empId: String(rec.empId),
+        name: rec.name || '未知',
+        hireDate: '',
+        idx: people.length,
+        status: rec.lastStatus || 'none',
+        note: rec.lastNote || '',
+        ts: rec.logs?.[rec.logs.length - 1]?.ts || null,
+        history: [],
+        isExtra: true  // 標記為臨時新增
+      });
+      if (rec.lastStatus && rec.lastStatus !== 'none') restoredCount++;
     });
   }
 
@@ -1756,9 +1776,9 @@ function saveData() {
   try { const raw = localStorage.getItem(courseKey); if (raw) existing = JSON.parse(raw).records || {}; } catch(e) {}
   const saveTime = new Date().toLocaleString('zh-TW');
   people.forEach(p => {
-    if (!existing[p.empId]) existing[p.empId] = { empId: p.empId, name: p.name, logs: [] };
+    if (!existing[p.empId]) existing[p.empId] = { empId: p.empId, name: p.name, logs: [], isExtra: p.isExtra || false };
     const rec = existing[p.empId];
-    rec.name = p.name; rec.lastStatus = p.status; rec.lastNote = p.note || '';
+    rec.name = p.name; rec.lastStatus = p.status; rec.lastNote = p.note || ''; rec.isExtra = p.isExtra || false;
     if (p.status !== 'none' && p.ts) {
       const lastLog = rec.logs[rec.logs.length - 1];
       if (!lastLog || lastLog.status !== p.status || lastLog.ts !== p.ts) {
