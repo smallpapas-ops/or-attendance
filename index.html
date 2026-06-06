@@ -971,6 +971,7 @@ function addPerson() {
   document.getElementById('ap-empid').value = '';
   document.getElementById('ap-name').focus();
   updateStats(); renderGrid();
+  resetSaveBtn();
   showToast('已新增：' + name);
 }
 
@@ -1834,16 +1835,31 @@ function saveData() {
   ['saveBtn','saveBtnFloat'].forEach(id => {
     const btn = document.getElementById(id);
     if (!btn) return;
+    const orig = btn.innerHTML;
     btn.innerHTML = '✓ 已存檔';
     btn.style.background = '#2E6B10';
     btn.style.borderColor = '#2E6B10';
+    // 1秒後恢復，可繼續存檔
     setTimeout(() => {
       btn.innerHTML = '💾 存檔';
       btn.style.background = 'var(--navy)';
       btn.style.borderColor = 'var(--navy)';
-    }, 2000);
+      btn.disabled = false;
+    }, 1000);
   });
   showToast('✓ 已存檔！' + saveTime);
+}
+
+// 重置存檔按鈕（新增人員後呼叫）
+function resetSaveBtn() {
+  ['saveBtn','saveBtnFloat'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.innerHTML = '💾 存檔';
+    btn.style.background = 'var(--navy)';
+    btn.style.borderColor = 'var(--navy)';
+    btn.disabled = false;
+  });
 }
 
 function exportCSV(type) {
