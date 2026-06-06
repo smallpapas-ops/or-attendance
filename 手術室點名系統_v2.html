@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+
+<title>手術室點名系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+/* 使用系統字體，避免 CSP 問題 */
+
+:root {
+  --navy: #1A2E52;
+  --navy-light: #2E4A80;
+  --blue: #1B67B3;
+  --blue-light: #E8F2FC;
+  --blue-mid: #C5DDF7;
+  --green: #2E6B10;
+  --green-light: #E8F5DC;
+  --amber: #7A4A08;
+  --amber-light: #FEF0D8;
+  --red: #9C2A2A;
+  --red-light: #FBEAEA;
+  --gray: #F6F7F9;
+  --gray2: #ECEEF2;
+  --border: #DDE2EC;
+  --text: #1a2033;
+  --text2: #505A72;
+  --text3: #8E97AC;
+  --white: #fff;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 8px rgba(26,46,82,.08);
+  --shadow-md: 0 4px 20px rgba(26,46,82,.12);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Microsoft JhengHei', '微軟正黑體', 'PingFang TC', 'Heiti TC', sans-serif; background: #EEF1F7; color: var(--text); min-height: 100vh; }
+
+/* ── LAYOUT ── */
+.app { display: flex; height: 100vh; overflow: hidden; }
+.sidebar { width: 230px; background: var(--navy); color: #fff; display: flex; flex-direction: column; flex-shrink: 0; box-shadow: 2px 0 12px rgba(0,0,0,.15); }
+.main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+/* ── SIDEBAR ── */
+.sb-logo { padding: 22px 20px 18px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sb-logo-icon { font-size: 26px; margin-bottom: 8px; }
+.sb-logo-title { font-size: 15px; font-weight: 700; letter-spacing: .05em; }
+.sb-logo-sub { font-size: 11px; opacity: .55; margin-top: 4px; letter-spacing: .02em; }
+.sb-nav { flex: 1; padding: 12px 0; }
+.sb-item { display: flex; align-items: center; gap: 11px; padding: 12px 20px; font-size: 13.5px; cursor: pointer; border-left: 3px solid transparent; transition: all .15s; opacity: .7; border-radius: 0; }
+.sb-item:hover { background: rgba(255,255,255,.09); opacity: 1; }
+.sb-item.active { background: rgba(255,255,255,.13); border-left-color: #7BB8F4; opacity: 1; font-weight: 600; }
+.sb-icon { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
+.sb-section { font-size: 10px; opacity: .4; padding: 16px 20px 5px; letter-spacing: .1em; text-transform: uppercase; }
+.sb-footer { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.1); font-size: 11.5px; }
+
+/* ── TOP BAR ── */
+.topbar { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 26px; height: 58px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+.topbar-title { font-size: 16px; font-weight: 700; color: var(--navy); letter-spacing: .02em; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.role-badge { background: var(--blue-light); color: var(--blue); font-size: 12px; padding: 5px 13px; border-radius: 20px; font-weight: 500; }
+
+/* ── PANELS ── */
+.panel { display: none; padding: 26px; flex: 1; }
+.panel.active { display: block; }
+
+/* ── STAT CARDS ── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.stat-card { background: var(--white); border-radius: var(--radius); padding: 18px 20px; border: 1px solid var(--border); box-shadow: var(--shadow); transition: transform .15s; }
+.stat-card:hover { transform: translateY(-1px); }
+.stat-val { font-size: 34px; font-weight: 700; color: var(--navy); line-height: 1; }
+.stat-lbl { font-size: 12px; color: var(--text2); margin-top: 5px; }
+.stat-card.green .stat-val { color: var(--green); }
+.stat-card.amber .stat-val { color: var(--amber); }
+.stat-card.red .stat-val { color: var(--red); }
+
+/* ── CARD ── */
+.card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 18px; box-shadow: var(--shadow); }
+.card-header { padding: 16px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 14px; font-weight: 700; color: var(--navy); letter-spacing: .01em; }
+.card-body { padding: 20px 22px; }
+
+/* ── BUTTONS ── */
+.btn { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 13px; cursor: pointer; background: var(--white); color: var(--text); font-family: inherit; transition: all .15s; font-weight: 500; }
+.btn:hover { background: var(--gray); border-color: #bcc4d6; }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+.btn.primary:hover { background: var(--navy-light); }
+.btn.success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn.danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn.sm { padding: 6px 12px; font-size: 12px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── FORM ── */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-label { font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: .02em; }
+.form-input { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); transition: border-color .15s; }
+.form-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(27,103,179,.1); }
+
+/* ── SEARCH BAR ── */
+.search-bar { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+.search-input { border: 1.5px solid var(--border); border-radius: 22px; padding: 8px 16px; font-size: 13px; font-family: inherit; min-width: 200px; background: var(--gray); transition: all .15s; }
+.search-input:focus { outline: none; border-color: var(--blue); background: var(--white); box-shadow: 0 0 0 3px rgba(27,103,179,.1); }
+
+/* ── FILTER CHIPS ── */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.chip { border: 1.5px solid var(--border); border-radius: 22px; padding: 5px 14px; font-size: 12px; cursor: pointer; background: var(--white); color: var(--text2); transition: all .15s; font-weight: 500; }
+.chip:hover { border-color: #99ABCF; background: var(--gray); }
+.chip.active-all { background: var(--blue-light); border-color: var(--blue); color: var(--blue); }
+.chip.active-present { background: var(--green-light); border-color: var(--green); color: var(--green); }
+.chip.active-late { background: var(--amber-light); border-color: var(--amber); color: var(--amber); }
+.chip.active-absent { background: var(--red-light); border-color: var(--red); color: var(--red); }
+.chip.active-none { background: var(--gray2); border-color: #8E97AC; color: var(--text2); }
+
+/* ── COURSE CARD (管理列表) ── */
+.course-card { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 0; margin-bottom: 12px; box-shadow: var(--shadow); overflow: hidden; transition: box-shadow .15s, border-color .15s; }
+.course-card:hover { box-shadow: var(--shadow-md); border-color: var(--blue-mid); }
+.course-card-body { padding: 16px 20px; display: flex; align-items: center; gap: 14px; }
+.course-cat-badge { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.course-info { flex: 1; min-width: 0; }
+.course-name { font-size: 14.5px; font-weight: 700; color: var(--navy); margin-bottom: 5px; }
+.course-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text3); }
+.course-actions { display: flex; gap: 7px; flex-shrink: 0; }
+.today-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #E63C3C; margin-left: 7px; vertical-align: middle; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(.85)} }
+
+/* ── ATTENDANCE GRID ── */
+.att-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.pcard { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 13px 15px; display: flex; align-items: center; gap: 11px; transition: all .15s; }
+.pcard:hover { border-color: #aab8d4; box-shadow: var(--shadow); }
+.pcard.st-present { border-color: #5E9C1A; background: #F2F9E8; }
+.pcard.st-late { border-color: #B07010; background: #FEF5E4; }
+.pcard.st-absent { border-color: #BE3535; background: var(--red-light); }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.pinfo { flex: 1; min-width: 0; }
+.pname { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.pmeta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.pts { font-size: 10px; color: var(--text3); margin-top: 3px; }
+.pbtn-group { display: flex; gap: 5px; }
+.pbtn { border: 1.5px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 12px; cursor: pointer; background: var(--white); color: var(--text2); font-weight: 600; font-family: inherit; transition: all .15s; }
+.pbtn:active { transform: scale(.92); }
+.pbtn.bp { background: #5E9C1A; border-color: #5E9C1A; color: #fff; }
+.pbtn.bl { background: #B07010; border-color: #B07010; color: #fff; }
+.pbtn.ba { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* ── TABLE ── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: var(--gray); padding: 11px 16px; text-align: left; font-size: 12px; color: var(--text2); font-weight: 700; border-bottom: 2px solid var(--border); white-space: nowrap; letter-spacing: .02em; }
+td { padding: 11px 16px; border-bottom: 1px solid #ECEEF2; color: var(--text); vertical-align: middle; }
+tr:hover td { background: #F8FAFF; }
+tr:last-child td { border-bottom: none; }
+
+/* ── BADGE ── */
+.badge { display: inline-block; border-radius: 20px; padding: 3px 11px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.badge-pass { background: var(--green-light); color: var(--green); }
+.badge-warn { background: var(--amber-light); color: var(--amber); }
+.badge-fail { background: var(--red-light); color: var(--red); }
+.badge-present { background: var(--green-light); color: var(--green); }
+.badge-late { background: var(--amber-light); color: var(--amber); }
+.badge-absent { background: var(--red-light); color: var(--red); }
+.badge-none { background: var(--gray2); color: var(--text3); }
+
+/* ── PROGRESS BAR ── */
+.prog-wrap { background: var(--gray2); border-radius: 5px; height: 8px; width: 100%; overflow: hidden; }
+.prog-fill { height: 8px; border-radius: 5px; transition: width .4s ease; }
+
+/* ── CHART ── */
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.chart-wrap { position: relative; height: 240px; }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); background: #1A2E52; color: #fff; padding: 11px 22px; border-radius: 22px; font-size: 13px; z-index: 999; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; font-weight: 500; box-shadow: 0 4px 16px rgba(26,46,82,.3); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+/* ── COURSE HEADER ACCENT ── */
+.course-acc-banner { background: linear-gradient(135deg, var(--navy) 0%, #2A4B8C 100%); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px; color: #fff; display: flex; align-items: center; justify-content: space-between; }
+.course-acc-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.course-acc-sub { font-size: 12px; opacity: .7; }
+
+/* ── TODAY BANNER ── */
+.today-banner { background: linear-gradient(135deg, #E8F4FF 0%, #F0FAFF 100%); border: 1.5px solid #B8D8F5; border-radius: var(--radius); padding: 16px 20px; margin-bottom: 18px; }
+.today-banner-title { font-size: 12px; font-weight: 700; color: #0A3F75; margin-bottom: 10px; letter-spacing: .04em; }
+
+/* ── MOBILE NAV ── */
+.mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,.08); }
+.mob-nav-items { display: flex; }
+.mob-item { flex: 1; padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--text3); cursor: pointer; border: none; background: none; font-family: inherit; }
+.mob-item.active { color: var(--blue); }
+.mob-icon { font-size: 20px; }
+
+/* ── MOBILE ── */
+@media (max-width: 700px) {
+  .sidebar { display: none; }
+  .mobile-nav { display: block; }
+  .panel { padding: 14px 13px 84px; }
+  .topbar { padding: 0 16px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .att-grid { grid-template-columns: 1fr; }
+  .chart-row { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .course-card-body { flex-direction: column; align-items: flex-start; }
+  .course-actions { width: 100%; justify-content: flex-end; }
+}
+@media (min-width: 701px) and (max-width: 1000px) {
+  .sidebar { width: 185px; }
+}
+</style>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, get, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBe6XhzeiDJylxwPhaTF43Eu-rP0Gku_dY",
+      authDomain: "or-attendance.firebaseapp.com",
+      databaseURL: "https://or-attendance-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "or-attendance",
+      storageBucket: "or-attendance.firebasestorage.app",
+      messagingSenderId: "153509180337",
+      appId: "1:153509180337:web:08fb95d5287f73d1b14390"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // ── 課程清單同步 ──────────────────────────────
+    // 即時監聽課程清單
+    onValue(ref(db, 'courseList'), (snapshot) => {
+      const data = snapshot.val();
+      let list = [];
+      if (data) {
+        list = Array.isArray(data) ? data : Object.values(data);
+        // 過濾掉 null/undefined
+        list = list.filter(Boolean);
+      }
+      // 直接更新全域 courseList
+      if (typeof courseList !== 'undefined') {
+        courseList.length = 0;
+        list.forEach(c => courseList.push(c));
+      }
+      window.courseList = list;
+      // 同步到 localStorage 作為備份
+      try { localStorage.setItem('courseList', JSON.stringify(list)); } catch(e) {}
+      if (typeof renderCourseList === 'function') renderCourseList();
+      if (typeof renderTodayBanner === 'function') renderTodayBanner();
+      if (typeof initExportPanel === 'function' && document.getElementById('panel-export')?.classList.contains('active')) initExportPanel();
+    });
+
+    // 即時監聽點名紀錄
+    onValue(ref(db, 'sessions'), (snapshot) => {
+      const data = snapshot.val() || {};
+      window._fbSessions = data;
+      // 同步到 localStorage
+      Object.entries(data).forEach(([safeKey, val]) => {
+        try {
+          // safeKey 是把特殊字元換成 _ 的版本，找原始 key
+          const origKey = Object.keys(data).find(k => k === safeKey);
+          if (val) localStorage.setItem(safeKey, JSON.stringify(val));
+        } catch(e) {}
+      });
+      // 如果目前在點名頁且有載入課程，即時更新
+      const panel = document.getElementById('panel-attendance');
+      if (panel && panel.classList.contains('active')) {
+        const courseName = document.getElementById('cName')?.value;
+        const courseDate = document.getElementById('cDate')?.value;
+        if (courseName && courseDate) {
+          const rawKey = 'sess_' + courseName + '_' + courseDate;
+          const safeKey = rawKey.replace(/[.#$\[\]]/g, '_');
+          const sessData = data[safeKey] || data[rawKey];
+          if (sessData) {
+            const recs = sessData.records || {};
+            if (typeof people !== 'undefined') {
+              let changed = false;
+              people.forEach(p => {
+                const rec = recs[p.empId];
+                if (rec && rec.lastStatus && rec.lastStatus !== 'none' && p.status === 'none') {
+                  p.status = rec.lastStatus;
+                  p.note = rec.lastNote || '';
+                  p.ts = rec.logs?.[rec.logs.length-1]?.ts || null;
+                  changed = true;
+                }
+              });
+              if (changed) {
+                if (typeof updateStats === 'function') updateStats();
+                if (typeof renderGrid === 'function') renderGrid();
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 暴露 Firebase 操作給主程式
+    window._fbDb = db;
+    window._fbRef = ref;
+    window._fbSet = set;
+    window._fbGet = get;
+    window._fbOnValue = onValue;
+    window._fbUpdate = update;
+    window._fbRemove = remove;
+    window._fbReady = true;
+
+    // 覆寫 localStorage 操作，改為 Firebase
+    window._fbSaveCourseList = function(list) {
+      const cleanList = list.filter(Boolean).map(c => ({...c}));
+      set(ref(db, 'courseList'), cleanList)
+        .then(() => console.log('✓ 課程清單已同步，共', cleanList.length, '筆'))
+        .catch(e => console.error('✗ 課程儲存失敗', e));
+    };
+
+    function toSafeKey(key) {
+      return key.replace(/[.#$\[\]]/g, '_');
+    }
+
+    window._fbSaveSession = function(key, data) {
+      const safeKey = toSafeKey(key);
+      set(ref(db, 'sessions/' + safeKey), data)
+        .then(() => console.log('✓ Firebase 存檔：' + safeKey))
+        .catch(e => console.error('✗ Firebase 存檔失敗', e));
+    };
+
+    window._fbGetSession = function(key) {
+      const safeKey = toSafeKey(key);
+      return window._fbSessions?.[safeKey] || window._fbSessions?.[key] || null;
+    };
+
+    window._fbDeleteCourse = function(courseKey) {
+      const safeKey = toSafeKey(courseKey);
+      remove(ref(db, 'sessions/' + safeKey)).catch(e => console.error(e));
+    };
+
+    // 同步點名員名稱
+    onValue(ref(db, 'settings/operatorName'), (snapshot) => {
+      const name = snapshot.val();
+      if (name) {
+        const el = document.getElementById('operatorName');
+        if (el) el.textContent = name;
+      }
+    });
+
+    window._fbSaveOperator = function(name) {
+      set(ref(db, 'settings/operatorName'), name).catch(e => console.error(e));
+    };
+
+    // ── 同仁名單同步 ──────────────────────────────
+    window._fbSaveStaff = function(staffArray) {
+      const obj = {};
+      staffArray.forEach((s, i) => { obj['s' + i] = { empId: s[0], name: s[1], hireDate: s[2] || '' }; });
+      set(ref(db, 'staff'), obj)
+        .then(() => console.log('✓ 同仁名單已同步，共', staffArray.length, '人'))
+        .catch(e => console.error('✗ 同仁名單同步失敗', e));
+    };
+
+    // 即時監聽同仁名單
+    onValue(ref(db, 'staff'), (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      const list = Object.values(data).filter(Boolean);
+      if (!list.length) return;
+      // 更新 RAW_STAFF
+      RAW_STAFF.length = 0;
+      list.forEach(s => RAW_STAFF.push([s.empId, s.name, s.hireDate || '']));
+      // 更新 people 陣列（保留現有點名狀態）
+      list.forEach((s, idx) => {
+        const existing = people.find(p => String(p.empId) === String(s.empId));
+        if (!existing) {
+          people.push({ empId: String(s.empId), name: s.name, hireDate: s.hireDate || '', idx: people.length, status: 'none', ts: null, history: [], note: '' });
+        } else {
+          existing.name = s.name;
+          existing.hireDate = s.hireDate || '';
+        }
+      });
+      // 移除已刪除的人員
+      const empIds = list.map(s => String(s.empId));
+      for (let i = people.length - 1; i >= 0; i--) {
+        if (!empIds.includes(String(people[i].empId))) people.splice(i, 1);
+      }
+      if (typeof renderStaffTable === 'function' && document.getElementById('panel-stafflist')?.classList.contains('active')) renderStaffTable();
+      if (typeof renderGrid === 'function' && document.getElementById('panel-attendance')?.classList.contains('active')) renderGrid();
+      if (typeof updateStats === 'function') updateStats();
+      const lbl = document.getElementById('staffCountLabel');
+      if (lbl) lbl.textContent = '共 ' + list.length + ' 人';
+      const sb = document.querySelector('.sb-footer div');
+      if (sb && sb.textContent.includes('共')) sb.textContent = '📊 共 ' + list.length + ' 人';
+    });
+
+    console.log('🔥 Firebase 已連線：or-attendance');
+
+    // 首次載入：若 Firebase 無同仁名單則上傳預設名單
+    get(ref(db, 'staff')).then(snapshot => {
+      if (!snapshot.exists()) {
+        console.log('Firebase 無同仁名單，上傳預設名單...');
+        if (window._fbSaveStaff) window._fbSaveStaff(RAW_STAFF);
+      }
+    }).catch(e => console.error('讀取同仁名單失敗', e));
+
+    window.dispatchEvent(new Event('firebaseReady'));
+
+    // 顯示連線狀態
+    setTimeout(() => {
+      const el = document.getElementById('fbStatus');
+      if (el) { el.textContent = '🔥 雲端同步'; el.style.color = '#2E6B10'; }
+    }, 1000);
+  </script>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-icon">🏥</div>
+      <div class="sb-logo-title">手術室點名</div>
+      <div class="sb-logo-sub">護理部・手術室</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-section">點名作業</div>
+      <div class="sb-item active" onclick="showPanel('courses')">
+        <span class="sb-icon">📋</span> 課程管理
+      </div>
+      <div class="sb-item" onclick="showPanel('attendance')" id="sb-attendance">
+        <span class="sb-icon">✏️</span> 即時點名
+      </div>
+      <div class="sb-section">主管後台</div>
+      <div class="sb-item" onclick="showPanel('dashboard')">
+        <span class="sb-icon">📊</span> 統計分析
+      </div>
+      <div class="sb-item" onclick="showPanel('stafflist')">
+        <span class="sb-icon">👥</span> 同仁名單 <span style="font-size:10px;opacity:.6;margin-left:auto">🔒</span>
+      </div>
+      <div class="sb-section">系統</div>
+      <div class="sb-item" onclick="showPanel('export')">
+        <span class="sb-icon">💾</span> 匯出報表
+      </div>
+    </nav>
+    <div class="sb-footer" style="opacity:.65;line-height:1.7">
+      <div style="color:#9FE1CB;font-size:11px;margin-bottom:3px">📊 共 51 人</div>
+      <button onclick="resetRoster()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;width:100%;margin-top:4px">⟳ 重設原始名單</button>
+      <div style="margin-top:8px;font-size:10.5px">手術室護理站 v2.0</div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">課程管理</div>
+      <div class="topbar-right">
+        <span id="fbStatus" style="font-size:11px;color:#aaa">⏳ 連線中…</span>
+        <span id="saveIndicatorEl" style="font-size:11px;color:#9AA0AC;white-space:nowrap;display:none"></span>
+        <span class="role-badge" onclick="openOperatorModal()" title="點擊修改點名員" style="cursor:pointer" id="operatorBadge">👤 <span id="operatorName">點名員</span></span>
+        <button class="btn sm" id="saveBtn" onclick="saveData()" style="background:var(--navy);color:#fff;border-color:var(--navy);display:none" id="saveBtnTop">💾 存檔</button>
+        <button class="btn sm" onclick="exportCSV()" style="display:none" id="exportBtnTop">📤 匯出</button>
+      </div>
+    </div>
+
+    <!-- ① 課程管理（首頁） -->
+    <div class="panel active" id="panel-courses">
+
+      <!-- 今日課程快速列 -->
+      <div id="todayBanner" style="display:none" class="today-banner">
+        <div class="today-banner-title">📅 今日課程，點選直接開始點名</div>
+        <div id="todayBannerList" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- 建立新課程 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">➕ 建立新課程</div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label">課程名稱 <span style="color:#E63C3C">*</span></label>
+              <input class="form-input" id="nc-name" placeholder="請輸入課程名稱…" onkeydown="if(event.key==='Enter')createCourse()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">日期</label>
+              <input class="form-input" id="nc-date" type="date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">開始時間</label>
+              <input class="form-input" id="nc-time" type="time">
+            </div>
+            <div class="form-group">
+              <label class="form-label">地點</label>
+              <input class="form-input" id="nc-place" placeholder="如：第一會議室">
+            </div>
+            <div class="form-group">
+              <label class="form-label">講師</label>
+              <input class="form-input" id="nc-inst" placeholder="講師姓名">
+            </div>
+            <div class="form-group">
+              <label class="form-label">課程類別</label>
+              <select class="form-input" id="nc-cat">
+                <option>N1</option><option>N2</option><option>N3</option><option>N4</option>
+                <option>讀書報告</option><option>個案討論</option><option>在職教育</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">積分</label>
+              <input class="form-input" id="nc-cr" type="number" min="0" step="0.5" placeholder="0">
+            </div>
+          </div>
+          <button class="btn primary" onclick="createCourse()" style="padding:11px 24px;font-size:14px">
+            ▶ 建立課程並開始點名
+          </button>
+        </div>
+      </div>
+
+      <!-- 課程清單 -->
+      <div id="courseList"></div>
+    </div>
+
+    <!-- ② 即時點名 -->
+    <div class="panel" id="panel-attendance">
+
+      <!-- 課程資訊橫幅 -->
+      <div class="course-acc-banner" id="courseAccBanner">
+        <div>
+          <div class="course-acc-title" id="bannerCourseName">尚未載入課程</div>
+          <div class="course-acc-sub" id="bannerCourseMeta">請先至「課程管理」選擇或建立課程</div>
+        </div>
+        <button onclick="showPanel('courses')" style="background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">
+          ← 課程管理
+        </button>
+      </div>
+
+      <!-- 隱藏的 input（供存檔/匯出用） -->
+      <input type="hidden" id="cName">
+      <input type="hidden" id="cDate">
+      <input type="hidden" id="cTime">
+      <input type="hidden" id="cPlace">
+      <input type="hidden" id="cResp">
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-val" id="stTotal">51</div><div class="stat-lbl">👥 總人數</div></div>
+        <div class="stat-card green"><div class="stat-val" id="stPresent">0</div><div class="stat-lbl">✓ 出席</div></div>
+        <div class="stat-card amber"><div class="stat-val" id="stLate">0</div><div class="stat-lbl">📝 有備註</div></div>
+        <div class="stat-card red"><div class="stat-val" id="stAbsent">0</div><div class="stat-lbl">✗ 缺席</div></div>
+        <div class="stat-card"><div class="stat-val" id="stRate">0%</div><div class="stat-lbl">📈 出席率</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="position:sticky;top:58px;z-index:10;background:#fff;border-radius:var(--radius) var(--radius) 0 0">
+          <div class="card-title">👥 點名名單 <span id="attCount" style="font-size:12px;color:var(--text3);font-weight:400"></span></div>
+          <div class="btn-row">
+            <button class="btn sm" onclick="toggleAddForm()" id="toggleAddBtn" style="border-color:var(--navy);color:var(--navy)">＋ 新增人員</button>
+            <button class="btn sm success" onclick="markAll('present')">全部出席</button>
+            <button class="btn sm" onclick="markAll('none')">⟳ 重置</button>
+            <button class="btn sm" id="saveBtnFloat" onclick="saveData()" style="background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600">💾 存檔</button>
+          </div>
+        </div>
+
+        <!-- 新增人員表單 -->
+        <div id="addPersonForm" style="display:none;padding:14px 22px;background:#F5F8FF;border-bottom:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px">➕ 臨時新增人員</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px">
+            <div class="form-group">
+              <label class="form-label">姓名 <span style="color:red">*</span></label>
+              <input class="form-input" id="ap-name" placeholder="姓名" onkeydown="if(event.key==='Enter')addPerson()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">員編</label>
+              <input class="form-input" id="ap-empid" placeholder="如：17300" onkeydown="if(event.key==='Enter')addPerson()">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary" onclick="addPerson()">➕ 新增</button>
+            <button class="btn" onclick="toggleAddForm()">取消</button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="search-bar">
+            <input class="search-input" id="searchBox" placeholder="🔍 搜尋姓名或員編…" oninput="renderGrid()">
+          </div>
+          <div class="chips">
+            <div class="chip active-all" onclick="setFilter('all',this)">全部</div>
+            <div class="chip" onclick="setFilter('none',this)">未點名</div>
+            <div class="chip" onclick="setFilter('present',this)">出席</div>
+            <div class="chip" onclick="setFilter('noted',this)">有備註</div>
+            <div class="chip" onclick="setFilter('absent',this)">缺席</div>
+          </div>
+          <div class="att-grid" id="attGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 統計分析 -->
+    <div class="panel" id="panel-dashboard">
+      <div id="dashLock" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+        <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:340px;text-align:center;box-shadow:var(--shadow-md)">
+          <div style="font-size:44px;margin-bottom:14px">🔒</div>
+          <div style="font-size:18px;font-weight:700;color:var(--navy);margin-bottom:6px">主管後台</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:24px">請輸入密碼以繼續</div>
+          <input id="dashPwdInput" type="password" placeholder="輸入密碼…"
+            style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:16px;text-align:center;letter-spacing:.2em;font-family:inherit;margin-bottom:10px"
+            onkeydown="if(event.key==='Enter')checkDashPwd()">
+          <div id="dashPwdErr" style="font-size:12px;color:#A32D2D;min-height:18px;margin-bottom:12px"></div>
+          <button onclick="checkDashPwd()"
+            style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--radius-sm);padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
+            🔓 登入
+          </button>
+        </div>
+      </div>
+      <div id="dashContent" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+          <button onclick="lockDashboard()" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 14px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit">🔒 登出後台</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+          <span style="font-size:12px;color:var(--text2);font-weight:600">篩選課程類別：</span>
+          <div id="catFilterChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <button onclick="setCatFilter('all')" id="catAll" style="border:1px solid var(--blue);background:var(--blue-light);color:#0A3F75;border-radius:20px;padding:5px 13px;font-size:12px;cursor:pointer;font-weight:600">全部</button>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-val" id="d-avg">—</div><div class="stat-lbl">📈 平均出席率</div></div>
+          <div class="stat-card green"><div class="stat-val" id="d-pass">—</div><div class="stat-lbl">✓ 達標 (≥80%)</div></div>
+          <div class="stat-card amber"><div class="stat-val" id="d-warn">—</div><div class="stat-lbl">⚠ 需注意 (60-79%)</div></div>
+          <div class="stat-card red"><div class="stat-val" id="d-fail">—</div><div class="stat-lbl">✗ 未達標 (&lt;60%)</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">🎓 課程類別出席分析</div></div>
+          <div class="card-body" id="catAnalysisArea"></div>
+        </div>
+        <div class="chart-row">
+          <div class="card">
+            <div class="card-header"><div class="card-title">出席率分佈</div></div>
+            <div class="card-body"><div class="chart-wrap"><canvas id="chartDist"></canvas></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">各月出席人次</div></div>
+            <div class="card-body"><div class="chart-wrap"><canvas id="chartMonthly"></canvas></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">🚨 未達標同仁</div></div>
+          <div class="card-body tbl-wrap" id="alertTable"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🕐 點名時間紀錄</div>
+            <select id="sessionSelect" onchange="renderSessionLog()" style="font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;font-family:inherit">
+              <option value="">— 選擇課程 —</option>
+            </select>
+          </div>
+          <div class="card-body" id="sessionLogArea">
+            <div style="color:var(--text3);font-size:13px;text-align:center;padding:1.5rem">請選擇課程查看點名時間紀錄</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ 同仁名單 -->
+    <div class="panel" id="panel-stafflist">
+      <!-- 🔒 同仁名單鎖定畫面 -->
+      <div id="staffLock" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+        <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:340px;text-align:center;box-shadow:var(--shadow-md)">
+          <div style="font-size:44px;margin-bottom:14px">🔒</div>
+          <div style="font-size:18px;font-weight:700;color:var(--navy);margin-bottom:6px">同仁名單</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:24px">請輸入主管密碼以繼續</div>
+          <input id="staffPwdInput" type="password" placeholder="輸入密碼…"
+            style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:16px;text-align:center;letter-spacing:.2em;font-family:inherit;margin-bottom:10px"
+            onkeydown="if(event.key==='Enter')checkStaffPwd()">
+          <div id="staffPwdErr" style="font-size:12px;color:#A32D2D;min-height:18px;margin-bottom:12px"></div>
+          <button onclick="checkStaffPwd()"
+            style="width:100%;background:var(--navy);color:#fff;border:none;border-radius:var(--radius-sm);padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
+            🔓 登入
+          </button>
+        </div>
+      </div>
+      <!-- 同仁名單內容 -->
+      <div id="staffContent" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+          <button onclick="lockDashboard()" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 14px;font-size:12px;cursor:pointer;color:var(--text2);font-family:inherit">🔒 登出後台</button>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">👥 同仁名單 <span id="staffCountLabel" style="font-size:12px;color:var(--text3);font-weight:400"></span></div>
+            <button class="btn sm primary" onclick="openAddStaffModal()">➕ 新增人員</button>
+          </div>
+          <div class="card-body">
+            <div class="search-bar">
+              <input class="search-input" id="staffSearch" placeholder="🔍 搜尋姓名或員編…" oninput="renderStaffTable()">
+            </div>
+            <div class="tbl-wrap"><table id="staffTable">
+              <thead><tr><th>員編</th><th>姓名</th><th>到職日</th><th>出席 / 應到</th><th>上課率</th><th>狀態</th><th style="width:80px">操作</th></tr></thead>
+              <tbody id="staffBody"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ 匯出 -->
+    <div class="panel" id="panel-export">
+      <div class="card">
+        <div class="card-header"><div class="card-title">💾 匯出報表</div></div>
+        <div class="card-body">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;letter-spacing:.03em">📈 年度統計報表</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:22px">
+            <div style="border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;transition:all .15s" onclick="exportCSV('summary')" onmouseover="this.style.background='#F0F6FF';this.style.borderColor='var(--blue)'" onmouseout="this.style.background='';this.style.borderColor='var(--border)'">
+              <div style="font-size:22px;margin-bottom:8px">📈</div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:3px">同仁年度彙總</div>
+              <div style="font-size:11px;color:var(--text3)">每人出席率、達標狀態、各課明細</div>
+            </div>
+            <div style="border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;transition:all .15s" onclick="exportCSV('alert')" onmouseover="this.style.background='#F0F6FF';this.style.borderColor='var(--blue)'" onmouseout="this.style.background='';this.style.borderColor='var(--border)'">
+              <div style="font-size:22px;margin-bottom:8px">🚨</div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:3px">未達標名單</div>
+              <div style="font-size:11px;color:var(--text3)">出席率未達 80%，含尚差堂數</div>
+            </div>
+          </div>
+          <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;letter-spacing:.03em">📋 單堂課點名明細</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <select id="exportCourseSelect" style="font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 14px;flex:1;min-width:200px;font-family:inherit">
+              <option value="">— 選擇課程 —</option>
+            </select>
+            <button class="btn primary" onclick="exportCSV('detail')">📤 下載 CSV</button>
+            <button class="btn" onclick="copyReport()">📋 複製文字</button>
+          </div>
+          <div id="exportCoursePreview" style="font-size:12px;color:var(--text3)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE NAV -->
+<div class="mobile-nav">
+  <div class="mob-nav-items">
+    <button class="mob-item active" onclick="showPanel('courses')"><span class="mob-icon">📋</span>課程</button>
+    <button class="mob-item" onclick="showPanel('attendance')" id="mob-attendance"><span class="mob-icon">✏️</span>點名</button>
+    <button class="mob-item" onclick="showPanel('dashboard')"><span class="mob-icon">📊</span>分析</button>
+    <button class="mob-item" onclick="showPanel('stafflist')"><span class="mob-icon">👥</span>名單</button>
+    <button class="mob-item" onclick="showPanel('export')"><span class="mob-icon">💾</span>匯出</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 編輯課程 Modal -->
+<div id="editCourseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:540px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="background:var(--navy);padding:18px 24px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:15px;font-weight:700;color:#fff">✎ 編輯課程</div>
+      <button onclick="closeEditModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+    <div style="padding:22px">
+      <input type="hidden" id="editCourseId">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label class="form-label">課程名稱 <span style="color:red">*</span></label>
+          <input class="form-input" id="edit-name" placeholder="課程名稱">
+        </div>
+        <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="edit-date" type="date"></div>
+        <div class="form-group"><label class="form-label">開始時間</label><input class="form-input" id="edit-time" type="time"></div>
+        <div class="form-group"><label class="form-label">地點</label><input class="form-input" id="edit-place" placeholder="地點"></div>
+        <div class="form-group"><label class="form-label">講師</label><input class="form-input" id="edit-inst" placeholder="講師"></div>
+        <div class="form-group">
+          <label class="form-label">課程類別</label>
+          <select class="form-input" id="edit-cat">
+            <option>N1</option><option>N2</option><option>N3</option><option>N4</option>
+            <option>讀書報告</option><option>個案討論</option><option>在職教育</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">積分</label><input class="form-input" id="edit-cr" type="number" min="0" step="0.5"></div>
+      </div>
+      <div style="background:var(--blue-light);border:1px solid var(--blue-mid);border-radius:8px;padding:10px 14px;font-size:12px;color:#0A3F75;margin-bottom:16px">
+        📋 修改後，原有的點名紀錄會自動同步保留。
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" onclick="closeEditModal()">取消</button>
+        <button class="btn primary" onclick="saveEditCourse()">✓ 儲存變更</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 人員 Modal -->
+<div id="staffModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="background:var(--navy);padding:18px 24px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:15px;font-weight:700;color:#fff" id="staffModalTitle">👤 新增人員</div>
+      <button onclick="closeStaffModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+    <div style="padding:22px">
+      <input type="hidden" id="staffModalEmpId">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">員編 <span style="color:red">*</span></label>
+          <input class="form-input" id="sm-empid" placeholder="如：17300">
+        </div>
+        <div class="form-group">
+          <label class="form-label">姓名 <span style="color:red">*</span></label>
+          <input class="form-input" id="sm-name" placeholder="姓名">
+        </div>
+        <div class="form-group">
+          <label class="form-label">到職日 <span style="font-size:11px;color:var(--text3);font-weight:400">（西元年，影響出席率計算）</span></label>
+          <input class="form-input" id="sm-hiredate" type="date" onkeydown="if(event.key==='Enter')saveStaffModal()">
+        </div>
+      </div>
+      <div id="staffModalWarn" style="font-size:12px;color:#A32D2D;min-height:18px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" onclick="closeStaffModal()">取消</button>
+        <button class="btn primary" onclick="saveStaffModal()">✓ 儲存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const RAW_STAFF = [
+  ['11192','蕭帆妤','1999-08-05'],['10273','王婷婷','1997-08-01'],['10361','李靜怡','1997-08-16'],
+  ['10367','張瑋恩','1997-08-16'],['10740','李佳容','1998-04-02'],['10746','王玉仙','1998-04-13'],
+  ['10922','陳玉茹','1998-09-01'],['11598','羅秀如','2001-04-18'],['12295','林奕辰','2004-10-21'],
+  ['12483','林靜子','2005-09-02'],['12847','郭妍伶','2007-07-02'],['13288','王嘉羚','2010-01-04'],
+  ['13565','程郁淳','2011-06-16'],['14040','黃怡婷','2013-05-21'],['14055','洪怡婷','2013-06-17'],
+  ['14190','楊衣甄','2013-11-18'],['14444','李宜鵑','2014-11-17'],['14492','謝佩芳','2015-03-23'],
+  ['14536','張佩琪','2015-05-25'],['14635','汪瑄柔','2015-08-17'],['14958','林昕澄','2017-03-20'],
+  ['15068','高靖緹','2017-08-07'],['15268','卓湘晴','2018-07-02'],['15321','陳柏宇','2018-08-13'],
+  ['15349','黃品喆','2018-09-03'],['15423','周芳怡','2018-12-03'],['15508','徐禾沐','2019-06-03'],
+  ['15544','黃淑嬅','2019-08-05'],['15577','鄒芮宸','2019-08-19'],['15664','陳金燕','2019-11-18'],
+  ['15783','蘇奕臻','2020-07-13'],['15813','曾雅筠','2020-08-17'],['16016','林峙廷','2021-08-16'],
+  ['16304','王婷玉','2022-08-22'],['16343','黃玉秀','2022-09-19'],['16360','辜嬿潔','2022-10-17'],
+  ['16565','黃予婕','2023-08-07'],['16587','黃沂晨','2023-08-21'],['16601','吳婉菁','2023-09-04'],
+  ['16650','劉祐呈','2023-10-16'],['16704','江嘉琪','2024-01-02'],['16900','李宜諮','2024-08-05'],
+  ['16926','何尚謙','2024-08-19'],['16946','陳明瑄','2024-09-02'],['16947','簡晏欣','2024-09-02'],
+  ['16948','黃佩琪','2024-09-02'],['16949','陳筠心','2024-09-02'],['17073','張芸甄','2024-12-23'],
+  ['17149','余宗芸','2025-04-07'],['17212','陳玥汝','2025-07-21'],['17223','鄒昀珊','2025-08-11'],
+  ['17307','蕭睬容','2025-10-07'],
+];
+
+const AVA_COLORS = [
+  {bg:'#E8F2FC',fg:'#0A3F75'},{bg:'#E8F5DC',fg:'#27500A'},{bg:'#FEF0D8',fg:'#633806'},
+  {bg:'#EEEDFE',fg:'#3C3489'},{bg:'#E0F5EE',fg:'#085041'},{bg:'#FAECE7',fg:'#712B13'},
+  {bg:'#FBEAF0',fg:'#72243E'},{bg:'#F1EFE8',fg:'#444441'},
+];
+
+function getRealYearStats(catFilter) {
+  const filteredCourses = courseList.filter(c => {
+    if (catFilter && catFilter !== 'all') return c.cat === catFilter;
+    return true;
+  });
+  const sessions = [];
+  filteredCourses.forEach(c => {
+    const key = 'sess_' + c.name + '_' + c.date;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) sessions.push({ ...JSON.parse(raw), courseId: c.id, courseDate: c.date });
+    } catch(e) {}
+  });
+  const personMap = {};
+  RAW_STAFF.forEach(([empId, name, hireDate]) => {
+    const personalTotal = filteredCourses.filter(c => {
+      if (!c.date || !hireDate) return true;
+      return c.date >= hireDate;
+    }).length;
+    personMap[empId] = { empId, name, hireDate: hireDate || '', att: 0, total: personalTotal, courses: [] };
+  });
+  sessions.forEach(sess => {
+    const ci = sess.courseInfo;
+    const courseDate = sess.courseDate || ci?.date || '';
+    Object.values(sess.records || {}).forEach(rec => {
+      const p = personMap[rec.empId];
+      if (!p) return;
+      if (rec.lastStatus === 'present') {
+        p.att++;
+        p.courses.push({ name: ci?.name || '', date: courseDate, cat: ci?.cat || '' });
+      }
+    });
+  });
+  const totalCourses = filteredCourses.length;
+  return {
+    stats: Object.values(personMap).map(p => ({
+      ...p, rate: p.total > 0 ? Math.round(p.att / p.total * 100) : 0
+    })),
+    totalCourses, sessions, filteredCourses
+  };
+}
+
+function getYearStats() {
+  const { stats } = getRealYearStats(null);
+  return stats;
+}
+
+let people = RAW_STAFF.map(([empId, name, hireDate], idx) => ({
+  empId: String(empId), name, hireDate: hireDate||'', idx, status: 'none', ts: null, history: [], note: ''
+}));
+
+let filterMode = 'all';
+
+function loadCourseList() {
+  try { return JSON.parse(localStorage.getItem('courseList') || '[]'); } catch(e) { return []; }
+}
+function saveCourseList() {
+  localStorage.setItem('courseList', JSON.stringify(courseList));
+  if (window._fbReady && window._fbSaveCourseList) {
+    window._fbSaveCourseList(courseList);
+  }
+}
+let courseList = loadCourseList();
+
+function nowStr() {
+  const d = new Date();
+  const date = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  const time = d.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  return `${date} ${time}`;
+}
+function labelOf(s) { return {present:'出席',late:'遲到',absent:'缺席',none:'未點'}[s]; }
+
+// ── PANEL ──────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.mob-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+
+  const titles = {courses:'課程管理', attendance:'即時點名', dashboard:'統計分析', stafflist:'同仁名單', export:'匯出報表'};
+  document.getElementById('topbarTitle').textContent = titles[name] || '';
+
+  const idx = {courses:0, attendance:1, dashboard:2, stafflist:3, export:4}[name];
+  document.querySelectorAll('.sb-item')[idx]?.classList.add('active');
+  document.querySelectorAll('.mob-item')[idx]?.classList.add('active');
+
+  // 點名頁顯示存檔/匯出按鈕
+  const isAtt = name === 'attendance';
+  document.getElementById('saveBtn').style.display = isAtt ? '' : 'none';
+  document.getElementById('exportBtnTop').style.display = isAtt ? '' : 'none';
+  document.getElementById('saveIndicatorEl').style.display = isAtt ? '' : 'none';
+
+  if (name === 'dashboard') {
+    if (dashUnlocked) renderDashboard();
+    else setTimeout(() => document.getElementById('dashPwdInput')?.focus(), 100);
+  }
+  if (name === 'stafflist') {
+    if (staffUnlocked) renderStaffTable();
+    else setTimeout(() => document.getElementById('staffPwdInput')?.focus(), 100);
+  }
+  if (name === 'courses') { renderCourseList(); renderTodayBanner(); }
+  if (name === 'export') initExportPanel();
+
+}
+
+// ── ATTENDANCE ─────────────────────────────────────
+function resetRoster() {
+  if (!confirm('確定要重設為原始 51 人名單？')) return;
+  people = RAW_STAFF.map(([empId, name, hireDate], idx) => ({
+    empId: String(empId), name, hireDate: hireDate||'', idx, status: 'none', ts: null, history: [], note: ''
+  }));
+  updateStats(); renderGrid();
+  showToast('已重設為原始名單（51 人）');
+}
+
+function toggleAddForm() {
+  const form = document.getElementById('addPersonForm');
+  const isVisible = form.style.display !== 'none';
+  form.style.display = isVisible ? 'none' : 'block';
+  document.getElementById('toggleAddBtn').textContent = isVisible ? '＋ 新增人員' : '✕ 關閉';
+  if (!isVisible) setTimeout(() => document.getElementById('ap-name').focus(), 50);
+}
+
+function addPerson() {
+  const name = document.getElementById('ap-name').value.trim();
+  if (!name) { document.getElementById('ap-name').style.borderColor='red'; setTimeout(()=>document.getElementById('ap-name').style.borderColor='',1500); return; }
+  const empId = document.getElementById('ap-empid').value.trim() || '—';
+  people.push({ empId, name, idx: people.length, status: 'none', ts: null, history: [], note: '' });
+  document.getElementById('ap-name').value = '';
+  document.getElementById('ap-empid').value = '';
+  document.getElementById('ap-name').focus();
+  updateStats(); renderGrid();
+  showToast('已新增：' + name);
+}
+
+function toggleNote(empId) {
+  const box = document.getElementById('noteBox-' + empId);
+  if (!box) return;
+  const isOpen = box.style.display !== 'none';
+  box.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) setTimeout(() => document.getElementById('noteInput-' + empId)?.focus(), 50);
+}
+
+function saveNote(empId) {
+  const p = people.find(x => x.empId === empId);
+  if (!p) return;
+  const val = (document.getElementById('noteInput-' + empId)?.value || '').trim();
+  p.note = val;
+  renderGrid();
+  showToast(val ? '備註已儲存' : '備註已清除');
+}
+
+function clearNote(empId) {
+  const p = people.find(x => x.empId === empId);
+  if (!p) return;
+  p.note = '';
+  renderGrid();
+}
+
+function removePerson(empId) {
+  const p = people.find(x => x.empId === empId);
+  people = people.filter(x => x.empId !== empId);
+  updateStats(); renderGrid();
+  showToast('已移除：' + p.name);
+}
+
+function setStatus(empId, status) {
+  const p = people.find(x => x.empId === empId);
+  if (!p) return;
+  if (p.status === status) {
+    p.status = 'none'; p.ts = null; p.history = [];
+    updateStats(); renderGrid(); return;
+  }
+  if (p.status !== 'none') p.history.push({ from: p.status, to: status, time: nowStr() });
+  if (p.status === 'none' && status !== 'none') p.ts = nowStr();
+  p.status = status;
+  updateStats(); renderGrid();
+}
+
+function markAll(status) {
+  people.forEach(p => { p.status = status; p.ts = null; p.history = []; });
+  updateStats(); renderGrid();
+}
+
+function setFilter(mode, el) {
+  filterMode = mode;
+  document.querySelectorAll('.chips .chip').forEach(c => c.className = 'chip');
+  el.className = 'chip active-' + (mode === 'all' ? 'all' : mode);
+  renderGrid();
+}
+
+function updateStats() {
+  const present = people.filter(p => p.status === 'present').length;
+  const noted = people.filter(p => p.note && p.note.trim()).length;
+  const absent = people.filter(p => p.status === 'absent').length;
+  const marked = present + absent;
+  document.getElementById('stTotal').textContent = people.length;
+  document.getElementById('stPresent').textContent = present;
+  document.getElementById('stLate').textContent = noted;
+  document.getElementById('stAbsent').textContent = absent;
+  document.getElementById('stRate').textContent = marked ? Math.round(present / people.length * 100) + '%' : '0%';
+}
+
+function renderGrid() {
+  const q = (document.getElementById('searchBox')?.value || '').toLowerCase();
+  const filtered = people.filter(p => {
+    if (q && !p.name.includes(q) && !p.empId.includes(q)) return false;
+    if (filterMode !== 'all' && filterMode !== 'noted' && p.status !== filterMode) return false;
+    if (filterMode === 'noted' && !(p.note && p.note.trim())) return false;
+    return true;
+  });
+  const pal = AVA_COLORS;
+  const el = document.getElementById('attGrid');
+  if (!el) return;
+  el.innerHTML = filtered.map(p => {
+    const c = pal[p.idx % pal.length];
+    const last = p.history.length ? p.history[p.history.length - 1] : null;
+    const noteVal = (p.note || '').replace(/"/g,'&quot;');
+    return `<div class="pcard st-${p.status}" id="pc-${p.empId}">
+      <div class="avatar" style="background:${c.bg};color:${c.fg}">${p.name.slice(0,2)}</div>
+      <div class="pinfo" style="min-width:0">
+        <div class="pname">${p.name}</div>
+        <div class="pmeta">${p.empId}</div>
+        ${p.ts ? `<div class="pts">${p.ts}${last ? ' → '+labelOf(last.to)+' '+last.time : ''}</div>` : ''}
+        ${p.note ? `<div style="font-size:11px;color:#7A4A08;background:#FEF0D8;border-radius:5px;padding:2px 7px;margin-top:4px;word-break:break-all">📝 ${p.note}</div>` : ''}
+        <div id="noteBox-${p.empId}" style="display:none;margin-top:6px">
+          <input id="noteInput-${p.empId}" type="text" value="${noteVal}" placeholder="輸入備註…"
+            style="width:100%;font-size:12px;border:1.5px solid #B07010;border-radius:6px;padding:5px 8px;font-family:inherit"
+            onkeydown="if(event.key==='Enter')saveNote('${p.empId}')"
+            onclick="event.stopPropagation()">
+          <div style="display:flex;gap:4px;margin-top:4px">
+            <button onclick="saveNote('${p.empId}')" style="flex:1;font-size:11px;padding:4px 0;background:#B07010;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600">儲存</button>
+            <button onclick="clearNote('${p.empId}')" style="flex:1;font-size:11px;padding:4px 0;background:#eee;color:#555;border:none;border-radius:5px;cursor:pointer">清除</button>
+            <button onclick="toggleNote('${p.empId}')" style="flex:1;font-size:11px;padding:4px 0;background:#eee;color:#555;border:none;border-radius:5px;cursor:pointer">取消</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <button onclick="removePerson('${p.empId}')" title="移除" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:0 2px;line-height:1" onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">✕</button>
+        <div class="pbtn-group">
+          <button class="pbtn ${p.status==='present'?'bp':''}" onclick="setStatus('${p.empId}','present')">出</button>
+          <button class="pbtn ${p.note?'bl':''}" onclick="toggleNote('${p.empId}')" title="備註">註</button>
+          <button class="pbtn ${p.status==='absent'?'ba':''}" onclick="setStatus('${p.empId}','absent')">缺</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') || '<div style="padding:2rem;text-align:center;color:#aaa;font-size:13px">無符合結果</div>';
+
+  const cnt = document.getElementById('attCount');
+  if (cnt) cnt.textContent = q || filterMode !== 'all' ? `（篩選後 ${filtered.length} 人）` : '';
+}
+
+// ── COURSE MANAGEMENT ─────────────────────────────
+function randCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
+
+function createCourse() {
+  const name = document.getElementById('nc-name').value.trim();
+  if (!name) { showToast('⚠ 請輸入課程名稱'); document.getElementById('nc-name').focus(); return; }
+  const course = {
+    id: 'C' + Date.now(),
+    name,
+    date: document.getElementById('nc-date').value,
+    time: document.getElementById('nc-time').value,
+    place: document.getElementById('nc-place').value,
+    inst: document.getElementById('nc-inst').value,
+    cat: document.getElementById('nc-cat').value,
+    cr: document.getElementById('nc-cr').value || 0,
+    code: randCode(),
+    created: new Date().toLocaleString('zh-TW')
+  };
+  courseList.unshift(course);
+  saveCourseList();
+  ['nc-name','nc-date','nc-time','nc-place','nc-inst','nc-cr'].forEach(id => document.getElementById(id).value = '');
+  loadCourse(course.id);
+}
+
+function renderTodayBanner() {
+  const today = new Date().toISOString().slice(0,10);
+  const todayCourses = courseList.filter(c => c.date === today);
+  const banner = document.getElementById('todayBanner');
+  const list = document.getElementById('todayBannerList');
+  if (!banner || !list) return;
+  if (!todayCourses.length) { banner.style.display = 'none'; return; }
+  banner.style.display = 'block';
+  const CAT_COL = {'N1':'#1B67B3','N2':'#2E6B10','N3':'#B07010','N4':'#5F52C0','讀書報告':'#208A62','個案討論':'#C04820','在職教育':'#606070'};
+  list.innerHTML = todayCourses.map(c => {
+    const key = 'sess_' + c.name + '_' + c.date;
+    const hasRec = !!localStorage.getItem(key);
+    const col = CAT_COL[c.cat] || '#1B67B3';
+    return `<button onclick="loadCourse('${c.id}')"
+      style="border:2px solid ${col};border-radius:10px;padding:10px 16px;cursor:pointer;background:#fff;text-align:left;min-width:160px;transition:all .15s;font-family:inherit"
+      onmouseover="this.style.background='${col}10'" onmouseout="this.style.background='#fff'">
+      <div style="font-size:11px;font-weight:700;color:${col};margin-bottom:3px">${c.cat} ${c.time || ''}</div>
+      <div style="font-size:13px;font-weight:700;color:var(--navy)">${c.name}</div>
+      <div style="font-size:10.5px;color:#888;margin-top:3px">${hasRec ? '✓ 已有紀錄，可繼續補點' : '📋 尚未點名'}</div>
+    </button>`;
+  }).join('');
+}
+
+function renderCourseList() {
+  const catColor = {
+    'N1':'#E8F2FC','N2':'#E8F5DC','N3':'#FEF0D8','N4':'#EEEDFE',
+    '讀書報告':'#E0F5EE','個案討論':'#FAECE7','在職教育':'#F1EFE8'
+  };
+  const catText = {
+    'N1':'#0A3F75','N2':'#27500A','N3':'#633806','N4':'#3C3489',
+    '讀書報告':'#085041','個案討論':'#712B13','在職教育':'#444441'
+  };
+  const today = new Date().toISOString().slice(0,10);
+  const el = document.getElementById('courseList');
+  if (!el) return;
+  if (!courseList.length) {
+    el.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:var(--text3)">
+      <div style="font-size:40px;margin-bottom:12px">📭</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">尚未建立任何課程</div>
+      <div style="font-size:12px">請在上方填寫課程資訊後點「建立課程並開始點名」</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = courseList.map(c => {
+    const bg = catColor[c.cat] || '#F5F5F5';
+    const fg = catText[c.cat] || '#333';
+    const isToday = c.date === today;
+    const key = 'sess_' + c.name + '_' + c.date;
+    const hasRec = !!localStorage.getItem(key);
+    return `<div class="course-card">
+      <div class="course-card-body">
+        <div class="course-cat-badge" style="background:${bg};color:${fg}">${c.cat}</div>
+        <div class="course-info">
+          <div class="course-name">
+            ${c.name}
+            ${isToday ? '<span class="today-dot" title="今日課程"></span>' : ''}
+            ${hasRec ? '<span style="font-size:10px;background:#E8F5DC;color:#2E6B10;border:1px solid #B5D98A;border-radius:4px;padding:1px 7px;margin-left:6px;vertical-align:middle;font-weight:600">已點名</span>' : ''}
+          </div>
+          <div class="course-meta">
+            <span>📅 ${c.date || '—'}</span>
+            <span>🕐 ${c.time || '—'}</span>
+            <span>📍 ${c.place || '—'}</span>
+            <span>👤 ${c.inst || '—'}</span>
+            ${c.cr ? `<span>🏆 積分 ${c.cr}</span>` : ''}
+          </div>
+        </div>
+        <div class="course-actions">
+          <button class="btn sm primary" onclick="loadCourse('${c.id}')">▶ 開始點名</button>
+          <button class="btn sm" onclick="editCourse('${c.id}')" style="border-color:var(--blue);color:var(--blue)">✎ 編輯</button>
+          <button class="btn sm danger" onclick="deleteCourse('${c.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function editCourse(id) {
+  const c = courseList.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('editCourseId').value = id;
+  document.getElementById('edit-name').value = c.name || '';
+  document.getElementById('edit-date').value = c.date || '';
+  document.getElementById('edit-time').value = c.time || '';
+  document.getElementById('edit-place').value = c.place || '';
+  document.getElementById('edit-inst').value = c.inst || '';
+  document.getElementById('edit-cat').value = c.cat || 'N1';
+  document.getElementById('edit-cr').value = c.cr || 0;
+  document.getElementById('editCourseModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('edit-name').focus(), 50);
+}
+
+function saveEditCourse() {
+  const id = document.getElementById('editCourseId').value;
+  const name = document.getElementById('edit-name').value.trim();
+  if (!name) { showToast('⚠ 請輸入課程名稱'); return; }
+  const c = courseList.find(x => x.id === id);
+  if (!c) return;
+  const oldKeys = [
+    'sess_' + c.name + '_' + c.date,
+    'sess_' + c.name + '_',
+  ].filter((k, i, arr) => arr.indexOf(k) === i);
+  const oldName = c.name; const oldDate = c.date;
+  c.name = name;
+  c.date = document.getElementById('edit-date').value;
+  c.time = document.getElementById('edit-time').value;
+  c.place = document.getElementById('edit-place').value;
+  c.inst = document.getElementById('edit-inst').value;
+  c.cat = document.getElementById('edit-cat').value;
+  c.cr = document.getElementById('edit-cr').value;
+  const newKey = 'sess_' + c.name + '_' + c.date;
+  let migrated = false;
+  oldKeys.forEach(oldKey => {
+    if (migrated || oldKey === newKey) return;
+    const oldData = localStorage.getItem(oldKey);
+    if (oldData) {
+      try {
+        const d = JSON.parse(oldData);
+        d.courseInfo = { name: c.name, date: c.date, time: c.time, place: c.place, cat: c.cat, cr: c.cr, inst: c.inst };
+        localStorage.setItem(newKey, JSON.stringify(d));
+        localStorage.removeItem(oldKey);
+        migrated = true;
+      } catch(e) {}
+    }
+  });
+  saveCourseList();
+  closeEditModal();
+  renderCourseList();
+  showToast('課程已更新：' + c.name);
+}
+
+function closeEditModal() {
+  document.getElementById('editCourseModal').style.display = 'none';
+}
+
+function deleteCourse(id) {
+  const c = courseList.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`確定要刪除課程「${c.name}」？`)) return;
+  courseList = courseList.filter(x => x.id !== id);
+  saveCourseList();
+  renderCourseList();
+  showToast('已刪除：' + c.name);
+}
+
+function loadCourse(id) {
+  const c = courseList.find(x => x.id === id);
+  if (!c) return;
+
+  // 更新隱藏 input（供存檔/匯出用）
+  document.getElementById('cName').value = c.name;
+  document.getElementById('cDate').value = c.date;
+  document.getElementById('cTime').value = c.time;
+  document.getElementById('cPlace').value = c.place || '';
+  document.getElementById('cResp').value = c.inst || '';
+
+  // 更新點名頁橫幅
+  document.getElementById('bannerCourseName').textContent = c.name;
+  document.getElementById('bannerCourseMeta').textContent =
+    [c.date, c.time, c.place ? '📍'+c.place : '', c.inst ? '👤'+c.inst : '', c.cat, c.cr ? '🏆積分'+c.cr : '']
+    .filter(Boolean).join('　');
+
+  people.forEach(p => { p.status = 'none'; p.ts = null; p.history = []; p.note = ''; });
+
+  const key = 'sess_' + c.name + '_' + c.date;
+  let sessionData = null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) sessionData = JSON.parse(raw);
+  } catch(e) {}
+
+  let restoredCount = 0;
+  if (sessionData && sessionData.records) {
+    people.forEach(p => {
+      const rec = sessionData.records[p.empId];
+      if (!rec) return;
+      if (rec.lastStatus && rec.lastStatus !== 'none') {
+        p.status = rec.lastStatus;
+        p.note = rec.lastNote || '';
+        if (rec.logs && rec.logs.length > 0) p.ts = rec.logs[rec.logs.length - 1].ts || null;
+        restoredCount++;
+      }
+    });
+  }
+
+  updateStats();
+  renderGrid();
+  showPanel('attendance');
+  showToast(restoredCount > 0
+    ? `✓ 已載入「${c.name}」，恢復 ${restoredCount} 筆，可繼續補點`
+    : `✓ 課程已載入：${c.name}，請開始點名`);
+}
+
+// ── DASHBOARD ──────────────────────────────────────
+const ADMIN_PWD = 'AF0713';
+let dashUnlocked = false;
+let staffUnlocked = false;
+
+function checkDashPwd() {
+  const val = document.getElementById('dashPwdInput').value;
+  if (val === ADMIN_PWD) {
+    dashUnlocked = true;
+    document.getElementById('dashLock').style.display = 'none';
+    document.getElementById('dashContent').style.display = 'block';
+    document.getElementById('dashPwdInput').value = '';
+    renderDashboard();
+  } else {
+    document.getElementById('dashPwdErr').textContent = '密碼錯誤，請重新輸入';
+    document.getElementById('dashPwdInput').value = '';
+    document.getElementById('dashPwdInput').focus();
+    document.getElementById('dashPwdInput').style.borderColor = '#A32D2D';
+    setTimeout(() => { document.getElementById('dashPwdInput').style.borderColor = ''; }, 1500);
+  }
+}
+
+function lockDashboard() {
+  dashUnlocked = false;
+  staffUnlocked = false;
+  document.getElementById('dashLock').style.display = 'flex';
+  document.getElementById('dashContent').style.display = 'none';
+  document.getElementById('staffLock').style.display = 'flex';
+  document.getElementById('staffContent').style.display = 'none';
+  showPanel('courses');
+}
+
+function checkStaffPwd() {
+  const val = document.getElementById('staffPwdInput').value;
+  if (val === ADMIN_PWD) {
+    staffUnlocked = true;
+    document.getElementById('staffLock').style.display = 'none';
+    document.getElementById('staffContent').style.display = 'block';
+    document.getElementById('staffPwdInput').value = '';
+    renderStaffTable();
+  } else {
+    document.getElementById('staffPwdErr').textContent = '密碼錯誤，請重新輸入';
+    document.getElementById('staffPwdInput').value = '';
+    document.getElementById('staffPwdInput').focus();
+    document.getElementById('staffPwdInput').style.borderColor = '#A32D2D';
+    setTimeout(() => { document.getElementById('staffPwdInput').style.borderColor = ''; }, 1500);
+  }
+}
+
+let chartDist, chartMonthly;
+const CAT_LIST = ['N1','N2','N3','N4','讀書報告','個案討論','在職教育'];
+const CAT_COLOR = {
+  'N1':  {bg:'#E8F2FC',fg:'#0A3F75',bar:'#1B67B3'},
+  'N2':  {bg:'#E8F5DC',fg:'#27500A',bar:'#2E6B10'},
+  'N3':  {bg:'#FEF0D8',fg:'#633806',bar:'#B07010'},
+  'N4':  {bg:'#EEEDFE',fg:'#3C3489',bar:'#5F52C0'},
+  '讀書報告':{bg:'#E0F5EE',fg:'#085041',bar:'#208A62'},
+  '個案討論':{bg:'#FAECE7',fg:'#712B13',bar:'#C04820'},
+  '在職教育':{bg:'#F1EFE8',fg:'#444441',bar:'#606070'},
+};
+let activeCatFilter = 'all';
+
+function setCatFilter(cat) {
+  activeCatFilter = cat;
+  document.querySelectorAll('#catFilterChips button, #catAll').forEach(b => {
+    b.style.background = 'var(--white)'; b.style.borderColor = 'var(--border)';
+    b.style.color = 'var(--text2)'; b.style.fontWeight = 'normal';
+  });
+  const active = cat === 'all'
+    ? document.getElementById('catAll')
+    : document.querySelector(`#catFilterChips button[data-cat="${cat}"]`);
+  if (active) { active.style.background='var(--blue-light)'; active.style.borderColor='var(--blue)'; active.style.color='#0A3F75'; active.style.fontWeight='600'; }
+  renderDashboard();
+}
+
+function renderCatAnalysis() {
+  const catStats = {};
+  CAT_LIST.forEach(cat => { catStats[cat] = { total: 0, att: 0, courses: 0 }; });
+  courseList.forEach(c => {
+    const cat = c.cat || '';
+    if (!catStats[cat]) return;
+    catStats[cat].courses++;
+    try {
+      const key = 'sess_' + c.name + '_' + c.date;
+      const raw = localStorage.getItem(key); if (!raw) return;
+      const d = JSON.parse(raw);
+      Object.values(d.records || {}).forEach(rec => {
+        catStats[cat].total++;
+        if (rec.lastStatus === 'present') catStats[cat].att++;
+      });
+    } catch(e) {}
+  });
+  const area = document.getElementById('catAnalysisArea');
+  const hasData = CAT_LIST.some(cat => catStats[cat].courses > 0);
+  if (!hasData) {
+    area.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text3);font-size:13px">尚無課程點名紀錄。完成點名並存檔後，此處將顯示各類別分析。</div>';
+    return;
+  }
+  area.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:12px">
+    ${CAT_LIST.map(cat => {
+      const s = catStats[cat];
+      const rate = s.total ? Math.round(s.att/s.total*100) : 0;
+      const c = CAT_COLOR[cat] || {bg:'#F5F5F5',fg:'#333',bar:'#888'};
+      const rateColor = rate>=80?'#2E6B10':rate>=60?'#7A4A08':'#9C2A2A';
+      const isActive = activeCatFilter === cat;
+      return `<div onclick="setCatFilter('${cat}')" style="border:2px solid ${isActive?'var(--blue)':'var(--border)'};border-radius:12px;padding:16px;cursor:pointer;background:${isActive?'var(--blue-light)':'var(--white)'};transition:all .15s"
+        onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-light)'"
+        onmouseout="this.style.borderColor='${isActive?'var(--blue)':'var(--border)'}'">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div style="width:34px;height:34px;border-radius:8px;background:${c.bg};color:${c.fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${cat}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy)">${cat}</div>
+        </div>
+        <div style="font-size:28px;font-weight:700;color:${s.courses?rateColor:'#ccc'};margin-bottom:4px">${s.courses?rate+'%':'—'}</div>
+        <div style="background:#ECEEF2;border-radius:5px;height:6px;margin-bottom:8px;overflow:hidden">
+          <div style="width:${rate}%;height:6px;background:${c.bar};border-radius:5px"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">${s.courses?`${s.courses} 堂課　出席 ${s.att}／${s.total} 人次`:'尚無紀錄'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderDashboard() {
+  loadSessionSelect();
+  renderCatAnalysis();
+  const chips = document.getElementById('catFilterChips');
+  if (chips && !chips.children.length) {
+    CAT_LIST.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.dataset.cat = cat; btn.textContent = cat;
+      btn.style.cssText = 'border:1px solid var(--border);background:var(--white);color:var(--text2);border-radius:20px;padding:5px 13px;font-size:12px;cursor:pointer;font-family:inherit';
+      btn.onclick = () => setCatFilter(cat);
+      chips.appendChild(btn);
+    });
+  }
+  const { stats, totalCourses, sessions } = getRealYearStats(activeCatFilter === 'all' ? null : activeCatFilter);
+  const hasRealData = totalCourses > 0;
+  const useStats = hasRealData ? stats : getYearStats();
+  const validStats = useStats.filter(s => s.total > 0);
+  const avg = validStats.length ? Math.round(validStats.reduce((a,s)=>a+s.rate,0)/validStats.length) : 0;
+  const pass = useStats.filter(s => s.rate >= 80).length;
+  const warn = useStats.filter(s => s.rate >= 60 && s.rate < 80).length;
+  const fail = useStats.filter(s => s.rate < 60).length;
+  document.getElementById('d-avg').textContent = avg + '%';
+  document.getElementById('d-pass').textContent = pass + ' 人';
+  document.getElementById('d-warn').textContent = warn + ' 人';
+  document.getElementById('d-fail').textContent = fail + ' 人';
+
+  let cntEl = document.getElementById('d-course-count');
+  if (!cntEl) {
+    const grid = document.querySelector('#dashContent .stat-grid');
+    if (grid) {
+      cntEl = document.createElement('div');
+      cntEl.id = 'd-course-count';
+      cntEl.className = 'stat-card';
+      cntEl.style.borderLeft = '3px solid var(--blue)';
+      grid.appendChild(cntEl);
+    }
+  }
+  if (cntEl) cntEl.innerHTML = `<div class="stat-val" style="color:var(--blue)">${totalCourses}</div><div class="stat-lbl">📋 年度開課堂數</div>`;
+
+  if (chartDist) chartDist.destroy();
+  chartDist = new Chart(document.getElementById('chartDist'), {
+    type: 'doughnut',
+    data: { labels: [`達標≥80% (${pass})`,`需注意60-79% (${warn})`,`未達標<60% (${fail})`],
+      datasets: [{ data:[pass,warn,fail], backgroundColor:['#2E6B10','#B07010','#9C2A2A'], borderWidth:0 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ font:{size:12}, padding:10 } } } }
+  });
+
+  const months = Array.from({length:12},(_,i)=>i+1);
+  let attPerMonth = months.map(() => 0), absPerMonth = months.map(() => 0);
+  if (hasRealData) {
+    sessions.forEach(sess => {
+      const d = sess.courseInfo?.date || '';
+      const m = parseInt((d.split('-')[1]||'0'));
+      if (!m) return;
+      Object.values(sess.records||{}).forEach(r => {
+        if (r.lastStatus==='present') attPerMonth[m-1]++;
+        else absPerMonth[m-1]++;
+      });
+    });
+  }
+  if (chartMonthly) chartMonthly.destroy();
+  chartMonthly = new Chart(document.getElementById('chartMonthly'), {
+    type:'bar',
+    data:{ labels:months.map(m=>m+'月'),
+      datasets:[{label:'出席',data:attPerMonth,backgroundColor:'#2E6B10',borderRadius:4},{label:'缺席',data:absPerMonth,backgroundColor:'#9C2A2A',borderRadius:4}] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{ticks:{font:{size:11}}},y:{ticks:{font:{size:11}}}} }
+  });
+
+  const failing = useStats.filter(s=>s.rate<80).sort((a,b)=>a.rate-b.rate);
+  document.getElementById('alertTable').innerHTML = `
+    ${hasRealData ? `<div style="font-size:12px;color:#0A3F75;background:var(--blue-light);padding:8px 14px;border-radius:8px;margin-bottom:10px">📋 年度開課 <strong>${totalCourses}</strong> 堂，以下同仁出席率未達 80%</div>` : ''}
+    <table><thead><tr><th>員編</th><th>姓名</th><th>到職日</th><th>出席/應到</th><th>出席率</th><th>進度</th><th>狀態</th></tr></thead>
+    <tbody>${failing.map(s=>{
+      const cls=s.rate>=60?'badge-warn':'badge-fail';
+      const lbl=s.rate>=60?'需注意':'未達標';
+      const fc=s.rate>=60?'#7A4A08':'#9C2A2A';
+      const hireTw = s.hireDate ? (() => { const d=new Date(s.hireDate); return `${d.getFullYear()-1911}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; })() : '—';
+      const need = s.total > 0 ? Math.max(0, Math.ceil(s.total * 0.8) - s.att) : 0;
+      return `<tr><td style="color:var(--text3);font-size:12px">${s.empId}</td>
+        <td style="font-weight:700">${s.name}</td>
+        <td style="font-size:11px;color:var(--text3)">${hireTw}</td>
+        <td style="color:${fc};font-weight:600">${s.att} / ${s.total}</td>
+        <td><div style="display:flex;align-items:center;gap:8px">
+          <div class="prog-wrap" style="width:70px"><div class="prog-fill" style="width:${s.rate}%;background:${fc}"></div></div>
+          <span style="font-size:12px;color:${fc};font-weight:700">${s.rate}%</span>
+        </div></td>
+        <td>${need>0?`<span style="font-size:11px;color:#7A4A08">尚差 ${need} 堂</span>`:''}</td>
+        <td><span class="badge ${cls}">${lbl}</span></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function loadSessionSelect() {
+  const sel = document.getElementById('sessionSelect');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— 選擇課程 —</option>';
+  courseList.forEach(c => {
+    const key = 'sess_' + c.name + '_' + c.date;
+    const hasData = !!localStorage.getItem(key);
+    if (hasData) {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = `${c.name}　${c.date}　[${c.cat}]`;
+      sel.appendChild(opt);
+    }
+  });
+  if (cur) sel.value = cur;
+}
+
+function renderSessionLog() {
+  const key = document.getElementById('sessionSelect').value;
+  const area = document.getElementById('sessionLogArea');
+  if (!key) { area.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:1.5rem">請選擇課程</div>'; return; }
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) { area.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:1.5rem">無點名紀錄</div>'; return; }
+    const data = JSON.parse(raw);
+    const recs = Object.values(data.records || {});
+    const present = recs.filter(r => r.lastStatus === 'present');
+    const absent = recs.filter(r => r.lastStatus === 'absent');
+    const none = recs.filter(r => r.lastStatus === 'none');
+    const statusLabel = s => s === 'present' ? '出席' : s === 'absent' ? '缺席' : '未點';
+    const statusColor = s => s === 'present' ? '#2E6B10' : s === 'absent' ? '#9C2A2A' : '#888';
+    const statusBg = s => s === 'present' ? '#E8F5DC' : s === 'absent' ? '#FBEAEA' : '#F5F5F5';
+    area.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <span style="background:#E8F5DC;color:#2E6B10;border-radius:20px;padding:3px 13px;font-size:12px;font-weight:600">出席 ${present.length} 人</span>
+        <span style="background:#FBEAEA;color:#9C2A2A;border-radius:20px;padding:3px 13px;font-size:12px;font-weight:600">缺席 ${absent.length} 人</span>
+        <span style="background:#F5F5F5;color:#888;border-radius:20px;padding:3px 13px;font-size:12px">未點 ${none.length} 人</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text3)">存檔：${data.lastSaved || ''}</span>
+      </div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--gray)">
+          <th style="padding:9px 13px;text-align:left;font-size:12px;color:var(--text2);border-bottom:2px solid var(--border)">員編</th>
+          <th style="padding:9px 13px;text-align:left;font-size:12px;color:var(--text2);border-bottom:2px solid var(--border)">姓名</th>
+          <th style="padding:9px 13px;text-align:left;font-size:12px;color:var(--text2);border-bottom:2px solid var(--border)">最終狀態</th>
+          <th style="padding:9px 13px;text-align:left;font-size:12px;color:var(--text2);border-bottom:2px solid var(--border)">點名時間</th>
+          <th style="padding:9px 13px;text-align:left;font-size:12px;color:var(--text2);border-bottom:2px solid var(--border)">備註</th>
+        </tr></thead>
+        <tbody>${recs.sort((a,b)=>({present:0,absent:1,none:2}[a.lastStatus]||2)-({present:0,absent:1,none:2}[b.lastStatus]||2)).map((r,i) => {
+          const logsHtml = r.logs && r.logs.length
+            ? r.logs.map(l => `<span style="display:inline-flex;align-items:center;gap:3px;background:${statusBg(l.status)};color:${statusColor(l.status)};border-radius:4px;padding:2px 7px;font-size:11px;margin:1px 2px;white-space:nowrap">${statusLabel(l.status)} ${l.ts}</span>`).join('')
+            : '<span style="color:#bbb;font-size:11px">—</span>';
+          return `<tr style="${i%2?'background:#FAFBFC':''}">
+            <td style="padding:9px 13px;color:var(--text3);font-size:12px;border-bottom:1px solid #ECEEF2">${r.empId}</td>
+            <td style="padding:9px 13px;font-weight:700;border-bottom:1px solid #ECEEF2">${r.name}</td>
+            <td style="padding:9px 13px;border-bottom:1px solid #ECEEF2">
+              <span style="background:${statusBg(r.lastStatus)};color:${statusColor(r.lastStatus)};border-radius:20px;padding:3px 11px;font-size:12px;font-weight:600">${statusLabel(r.lastStatus)}</span>
+            </td>
+            <td style="padding:9px 13px;border-bottom:1px solid #ECEEF2">${logsHtml}</td>
+            <td style="padding:9px 13px;border-bottom:1px solid #ECEEF2;font-size:12px;color:#7A4A08">${r.lastNote || ''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+  } catch(e) { area.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:1.5rem">讀取失敗</div>'; }
+}
+
+// ── STAFF ─────────────────────────────────────────
+function renderStaffTable() {
+  const q = (document.getElementById('staffSearch')?.value || '').toLowerCase();
+  const stats = getYearStats().filter(s => !q || s.name.includes(q) || s.empId.includes(q));
+  const lbl = document.getElementById('staffCountLabel');
+  if (lbl) lbl.textContent = `共 ${RAW_STAFF.length} 人`;
+  const maxTotal = getYearStats().reduce((mx,x)=>Math.max(mx,x.total),0);
+  document.getElementById('staffBody').innerHTML = stats.map(s => {
+    const fc = s.rate >= 80 ? '#2E6B10' : s.rate >= 60 ? '#7A4A08' : '#9C2A2A';
+    const cls = s.rate >= 80 ? 'badge-pass' : s.rate >= 60 ? 'badge-warn' : 'badge-fail';
+    const lbl2 = s.rate >= 80 ? '達標' : s.rate >= 60 ? '需注意' : '未達標';
+    const hireTw = s.hireDate ? (() => { const d=new Date(s.hireDate); return `${d.getFullYear()-1911}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; })() : '—';
+    return `<tr>
+      <td style="color:var(--text3);font-size:12px">${s.empId}</td>
+      <td style="font-weight:700">${s.name}</td>
+      <td style="font-size:12px;color:var(--text3)">${hireTw}</td>
+      <td style="color:${fc};font-weight:600">${s.att} / ${s.total}${s.total<maxTotal?'<span style="font-size:10px;color:#B07010;margin-left:4px">★到職調整</span>':''}</td>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <div class="prog-wrap" style="width:80px"><div class="prog-fill" style="width:${s.rate}%;background:${fc}"></div></div>
+        <span style="font-size:12px;color:${fc};font-weight:700">${s.rate}%</span>
+      </div></td>
+      <td><span class="badge ${cls}">${lbl2}</span></td>
+      <td><div style="display:flex;gap:5px">
+        <button onclick="openEditStaffModal('${s.empId}')" style="border:1px solid var(--blue);color:var(--blue);background:none;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer">✎</button>
+        <button onclick="deleteStaff('${s.empId}')" style="border:1px solid var(--red);color:var(--red);background:none;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function openAddStaffModal() {
+  document.getElementById('staffModalTitle').textContent = '👤 新增人員';
+  document.getElementById('staffModalEmpId').value = '';
+  document.getElementById('sm-empid').value = '';
+  document.getElementById('sm-name').value = '';
+  document.getElementById('sm-hiredate').value = '';
+  document.getElementById('sm-empid').disabled = false;
+  document.getElementById('staffModalWarn').textContent = '';
+  document.getElementById('staffModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('sm-empid').focus(), 50);
+}
+
+function openEditStaffModal(empId) {
+  const s = RAW_STAFF.find(([id]) => String(id) === String(empId));
+  if (!s) return;
+  document.getElementById('staffModalTitle').textContent = '✎ 編輯人員';
+  document.getElementById('staffModalEmpId').value = empId;
+  document.getElementById('sm-empid').value = s[0];
+  document.getElementById('sm-name').value = s[1];
+  document.getElementById('sm-hiredate').value = s[2] || '';
+  document.getElementById('sm-empid').disabled = true;
+  document.getElementById('staffModalWarn').textContent = '';
+  document.getElementById('staffModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('sm-name').focus(), 50);
+}
+
+function saveStaffModal() {
+  const origEmpId = document.getElementById('staffModalEmpId').value;
+  const empId = document.getElementById('sm-empid').value.trim();
+  const name = document.getElementById('sm-name').value.trim();
+  const hireDate = document.getElementById('sm-hiredate').value.trim();
+  const warn = document.getElementById('staffModalWarn');
+  if (!empId || !name) { warn.textContent = '員編與姓名皆為必填'; return; }
+  if (!origEmpId) {
+    if (RAW_STAFF.find(([id]) => String(id) === empId)) { warn.textContent = '此員編已存在'; return; }
+    RAW_STAFF.push([empId, name, hireDate]);
+    people.push({ empId: String(empId), name, hireDate, idx: people.length, status: 'none', ts: null, history: [], note: '' });
+    showToast('已新增：' + name);
+  } else {
+    const idx = RAW_STAFF.findIndex(([id]) => String(id) === String(origEmpId));
+    if (idx >= 0) RAW_STAFF[idx] = [empId, name, hireDate];
+    const p = people.find(x => String(x.empId) === String(origEmpId));
+    if (p) { p.name = name; p.hireDate = hireDate; }
+    showToast('已更新：' + name);
+  }
+  closeStaffModal();
+  renderStaffTable();
+  renderGrid();
+  // 同步到 Firebase
+  if (window._fbReady && window._fbSaveStaff) {
+    window._fbSaveStaff(RAW_STAFF);
+  }
+}
+
+function deleteStaff(empId) {
+  const s = RAW_STAFF.find(([id]) => String(id) === String(empId));
+  if (!s) return;
+  if (!confirm(`確定要移除「${s[1]}」？`)) return;
+  const idx = RAW_STAFF.findIndex(([id]) => String(id) === String(empId));
+  if (idx >= 0) RAW_STAFF.splice(idx, 1);
+  people = people.filter(p => String(p.empId) !== String(empId));
+  renderStaffTable(); renderGrid(); updateStats();
+  showToast('已移除：' + s[1]);
+  // 同步到 Firebase
+  if (window._fbReady && window._fbSaveStaff) {
+    window._fbSaveStaff(RAW_STAFF);
+  }
+}
+
+function closeStaffModal() {
+  document.getElementById('staffModal').style.display = 'none';
+}
+
+// ── EXPORT ────────────────────────────────────────
+function initExportPanel() {
+  const sel = document.getElementById('exportCourseSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— 選擇課程 —</option>';
+  courseList.forEach(c => {
+    const key = 'sess_' + c.name + '_' + c.date;
+    const hasData = !!localStorage.getItem(key);
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = `${c.name}　${c.date} ${c.time||''}　[${c.cat}]${hasData?'':' ⚠未點名'}`;
+    if (!hasData) opt.style.color = '#aaa';
+    sel.appendChild(opt);
+  });
+  const curKey = getCourseKey();
+  const keys = courseList.map(c => 'sess_' + c.name + '_' + c.date);
+  if (keys.includes(curKey)) { sel.value = curKey; updateExportPreview(curKey); }
+  sel.onchange = () => updateExportPreview(sel.value);
+}
+
+function updateExportPreview(key) {
+  const prev = document.getElementById('exportCoursePreview');
+  if (!prev) return;
+  if (!key) { prev.textContent = ''; return; }
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) { prev.innerHTML = '<span style="color:#9C2A2A">⚠ 此課程尚未有點名紀錄</span>'; return; }
+    const d = JSON.parse(raw);
+    const recs = Object.values(d.records || {});
+    const present = recs.filter(r => r.lastStatus === 'present').length;
+    const absent = recs.filter(r => r.lastStatus === 'absent').length;
+    const none = recs.filter(r => r.lastStatus === 'none').length;
+    prev.innerHTML = `📋 出席 <strong>${present}</strong> 人　缺席 ${absent} 人　未點 ${none} 人　最後存檔：${d.lastSaved || '—'}`;
+  } catch(e) { prev.textContent = ''; }
+}
+
+function getCourseKey() {
+  const name = document.getElementById('cName').value.trim() || '未命名課程';
+  const date = document.getElementById('cDate').value || new Date().toISOString().slice(0,10);
+  return 'sess_' + name + '_' + date;
+}
+
+function saveData() {
+  const name = document.getElementById('cName').value.trim();
+  if (!name) { showToast('⚠ 請先在課程管理選擇課程'); return; }
+  const courseKey = getCourseKey();
+  const courseInfo = {
+    name, date: document.getElementById('cDate').value,
+    time: document.getElementById('cTime').value,
+    place: document.getElementById('cPlace').value,
+    resp: document.getElementById('cResp').value,
+  };
+  const existingCourse = courseList.find(c => c.name === courseInfo.name && c.date === courseInfo.date);
+  if (!existingCourse) {
+    const nc = {
+      id: 'C' + Date.now(), name: courseInfo.name, date: courseInfo.date,
+      time: courseInfo.time, place: courseInfo.place, inst: courseInfo.resp,
+      cat: '在職教育', cr: 0, code: Math.random().toString(36).substr(2,6).toUpperCase(),
+      created: new Date().toLocaleString('zh-TW'), autoAdded: true
+    };
+    courseList.unshift(nc); saveCourseList();
+  }
+  let existing = {};
+  try { const raw = localStorage.getItem(courseKey); if (raw) existing = JSON.parse(raw).records || {}; } catch(e) {}
+  const saveTime = new Date().toLocaleString('zh-TW');
+  people.forEach(p => {
+    if (!existing[p.empId]) existing[p.empId] = { empId: p.empId, name: p.name, logs: [] };
+    const rec = existing[p.empId];
+    rec.name = p.name; rec.lastStatus = p.status; rec.lastNote = p.note || '';
+    if (p.status !== 'none' && p.ts) {
+      const lastLog = rec.logs[rec.logs.length - 1];
+      if (!lastLog || lastLog.status !== p.status || lastLog.ts !== p.ts) {
+        rec.logs.push({ status: p.status, ts: p.ts, savedAt: saveTime, note: p.note || '' });
+      }
+    }
+  });
+  const sessionPayload = { courseInfo, records: existing, lastSaved: saveTime };
+  localStorage.setItem(courseKey, JSON.stringify(sessionPayload));
+  if (window._fbReady && window._fbSaveSession) {
+    window._fbSaveSession(courseKey, sessionPayload);
+  }
+  let idx = [];
+  try { idx = JSON.parse(localStorage.getItem('course_index') || '[]'); } catch(e) {}
+  if (!idx.includes(courseKey)) { idx.unshift(courseKey); localStorage.setItem('course_index', JSON.stringify(idx.slice(0,50))); }
+
+  // 更新存檔指示
+  const indEl = document.getElementById('saveIndicatorEl');
+  if (indEl) { indEl.textContent = '存檔：' + saveTime; indEl.style.display = ''; }
+
+  ['saveBtn','saveBtnFloat'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.innerHTML = '✓ 已存檔';
+    btn.style.background = '#2E6B10';
+    btn.style.borderColor = '#2E6B10';
+    setTimeout(() => {
+      btn.innerHTML = '💾 存檔';
+      btn.style.background = 'var(--navy)';
+      btn.style.borderColor = 'var(--navy)';
+    }, 2000);
+  });
+  showToast('✓ 已存檔！' + saveTime);
+}
+
+function exportCSV(type) {
+  type = type || 'detail';
+  const bom = '\uFEFF';
+  let csv = '', fname = '';
+  const { stats: yearStats, totalCourses, sessions } = getRealYearStats(null);
+  const hasRealData = totalCourses > 0;
+
+  if (type === 'detail') {
+    const selKey = document.getElementById('exportCourseSelect')?.value || getCourseKey();
+    let detailPeople = people;
+    let detailCourseName = document.getElementById('cName').value || '課程';
+    let detailDate = document.getElementById('cDate').value || '';
+    if (selKey) {
+      try {
+        const raw = localStorage.getItem(selKey);
+        if (raw) {
+          const d = JSON.parse(raw);
+          detailCourseName = d.courseInfo?.name || detailCourseName;
+          detailDate = d.courseInfo?.date || detailDate;
+          detailPeople = Object.values(d.records || {}).map(r => ({
+            empId: r.empId, name: r.name, status: r.lastStatus || 'none',
+            ts: r.logs?.[r.logs.length-1]?.ts || '', note: r.lastNote || ''
+          }));
+        }
+      } catch(e) {}
+    }
+    csv = bom + `課程：${detailCourseName}　日期：${detailDate}\n員編,姓名,狀態,記錄時間,備註\n`;
+    detailPeople.forEach(p => { csv += `"${p.empId}","${p.name}","${labelOf(p.status)||'未點名'}","${p.ts||''}","${p.note||''}"\n`; });
+    fname = `點名_${detailCourseName}_${detailDate}.csv`;
+  } else if (type === 'summary') {
+    const useStats = hasRealData ? yearStats : getYearStats();
+    csv = bom + `年度課程出席彙總（開課 ${hasRealData ? totalCourses : '—'} 堂）\n員編,姓名,出席堂數,開課總堂數,出席率,狀態\n`;
+    useStats.forEach(s => {
+      const lbl = s.rate >= 80 ? '達標' : s.rate >= 60 ? '需注意' : '未達標';
+      csv += `"${s.empId}","${s.name}",${s.att},${s.total},${s.rate}%,"${lbl}"\n`;
+    });
+    fname = `年度出席彙總_${new Date().getFullYear()}.csv`;
+  } else if (type === 'alert') {
+    const useStats = hasRealData ? yearStats : getYearStats();
+    csv = bom + `未達標同仁（年度開課 ${hasRealData ? totalCourses : '—'} 堂，門檻 80%）\n員編,姓名,出席堂數,應到堂數,出席率,尚差堂數\n`;
+    useStats.filter(s=>s.rate<80).sort((a,b)=>a.rate-b.rate).forEach(s => {
+      const need = Math.ceil(s.total * 0.8) - s.att;
+      csv += `"${s.empId}","${s.name}",${s.att},${s.total},${s.rate}%,${need>0?`尚差 ${need} 堂`:'已達標'}\n`;
+    });
+    fname = '未達標名單.csv';
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = fname;
+  a.click();
+  showToast('已下載：' + fname);
+}
+
+function copyReport() {
+  const c = document.getElementById('cName').value || '（未填）';
+  const d = document.getElementById('cDate').value || '（未填）';
+  const t = document.getElementById('cTime').value || '（未填）';
+  const pl = document.getElementById('cPlace').value || '（未填）';
+  const re = document.getElementById('cResp').value || '（未填）';
+  const present = people.filter(p => p.status === 'present');
+  const absent = people.filter(p => p.status === 'absent');
+  const none = people.filter(p => p.status === 'none');
+  const noted = people.filter(p => p.note && p.note.trim());
+  let txt = `【${c}】點名結果\n日期：${d}　時間：${t}\n地點：${pl}　負責人：${re}\n${'─'.repeat(30)}\n`;
+  if (present.length) txt += `\n出席（${present.length}）：${present.map(p=>p.name).join('、')}\n`;
+  if (absent.length) txt += `\n缺席（${absent.length}）：${absent.map(p=>p.name).join('、')}\n`;
+  if (none.length) txt += `\n未點名（${none.length}）：${none.map(p=>p.name).join('、')}\n`;
+  if (noted.length) txt += `\n備註：\n${noted.map(p=>`  ${p.name}：${p.note}`).join('\n')}\n`;
+  txt += `\n共 ${people.length} 人，出席率 ${Math.round(present.length/people.length*100)}%`;
+  navigator.clipboard.writeText(txt).then(() => showToast('報表已複製！'));
+}
+
+// ── TOAST ────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ── INIT ─────────────────────────────────────────
+const now = new Date();
+document.getElementById('nc-date').value = now.toISOString().slice(0,10);
+document.getElementById('nc-time').value = now.toTimeString().slice(0,5);
+
+people = RAW_STAFF.map(([empId, name, hireDate], idx) => ({
+  empId: String(empId), name, hireDate: hireDate||'', idx, status: 'none', ts: null, history: [], note: ''
+}));
+
+updateStats();
+renderGrid();
+renderCourseList();
+renderTodayBanner();
+
+// 設定「課程管理」為首頁 active 狀態
+document.querySelectorAll('.sb-item')[0].classList.add('active');
+document.querySelectorAll('.mob-item')[0].classList.add('active');
+
+setTimeout(() => {
+  const today = new Date().toISOString().slice(0,10);
+  const todayCourses = courseList.filter(c => c.date === today);
+  if (todayCourses.length) {
+    showToast(`📅 今日有 ${todayCourses.length} 堂課，點選開始點名`);
+  } else {
+    showToast('📋 請建立或選擇課程後開始點名');
+  }
+}, 300);
+</script>
+
+<!-- 點名員 Modal -->
+<div id="operatorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:360px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="background:var(--navy);padding:18px 24px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:15px;font-weight:700;color:#fff">👤 點名員設定</div>
+      <button onclick="closeOperatorModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+    <div style="padding:24px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600">點名員姓名</div>
+      <input id="operatorInput" type="text" placeholder="請輸入點名員姓名…"
+        style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:15px;font-family:inherit;margin-bottom:6px"
+        onkeydown="if(event.key==='Enter')saveOperator()">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:20px">此名稱將顯示於右上角及匯出報表中</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="closeOperatorModal()" class="btn" style="flex:1">取消</button>
+        <button onclick="saveOperator()" class="btn primary" style="flex:2">✓ 儲存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openOperatorModal() {
+  const cur = document.getElementById('operatorName').textContent;
+  document.getElementById('operatorInput').value = cur === '點名員' ? '' : cur;
+  document.getElementById('operatorModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('operatorInput').focus(), 50);
+}
+function closeOperatorModal() {
+  document.getElementById('operatorModal').style.display = 'none';
+}
+function saveOperator() {
+  const val = document.getElementById('operatorInput').value.trim();
+  if (!val) { document.getElementById('operatorInput').style.borderColor='red'; setTimeout(()=>document.getElementById('operatorInput').style.borderColor='',1500); return; }
+  document.getElementById('operatorName').textContent = val;
+  // 同步到負責人欄位（如果點名頁有載入課程）
+  const respEl = document.getElementById('cResp');
+  if (respEl && !respEl.value) respEl.value = val;
+  closeOperatorModal();
+  showToast('點名員已設定：' + val);
+  try {
+    localStorage.setItem('operatorName', val);
+    if (window._fbReady && window._fbSaveOperator) window._fbSaveOperator(val);
+  } catch(e) {}
+}
+// 初始化：從 localStorage 還原
+(function() {
+  try {
+    const saved = localStorage.getItem('operatorName');
+    if (saved) document.getElementById('operatorName').textContent = saved;
+  } catch(e) {}
+})();
+</script>
+
+</body>
+</html>
