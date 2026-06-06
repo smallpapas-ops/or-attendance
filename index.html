@@ -1828,16 +1828,24 @@ function saveData() {
   } catch(e) {}
   const saveTime = new Date().toLocaleString('zh-TW');
   people.forEach(p => {
+    if (!p || !p.empId) return; // 跳過無效資料
     if (!existing[p.empId]) existing[p.empId] = { empId: p.empId, name: p.name, logs: [], isExtra: p.isExtra || false };
     const rec = existing[p.empId];
-    rec.name = p.name; rec.lastStatus = p.status; rec.lastNote = p.note || ''; rec.isExtra = p.isExtra || false;
-    if (p.status !== 'none' && p.ts) {
-      const lastLog = rec.logs[rec.logs.length - 1];
+    if (!rec) return;
+    if (!Array.isArray(rec.logs)) rec.logs = []; // 修正 logs 不是陣列的問題
+    rec.name = p.name;
+    rec.lastStatus = p.status || 'none';
+    rec.lastNote = p.note || '';
+    rec.isExtra = p.isExtra || false;
+    if (p.status && p.status !== 'none' && p.ts) {
+      const lastLog = rec.logs.length > 0 ? rec.logs[rec.logs.length - 1] : null;
       if (!lastLog || lastLog.status !== p.status || lastLog.ts !== p.ts) {
         rec.logs.push({ status: p.status, ts: p.ts, savedAt: saveTime, note: p.note || '' });
       }
     }
   });
+  // 清除 existing 中的 undefined/null 值
+  Object.keys(existing).forEach(k => { if (!existing[k]) delete existing[k]; });
   const sessionPayload = { courseInfo, records: existing, lastSaved: saveTime };
   localStorage.setItem(courseKey, JSON.stringify(sessionPayload));
   if (window._fbReady && window._fbSaveSession) {
